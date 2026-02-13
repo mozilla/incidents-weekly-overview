@@ -48,10 +48,10 @@ def extract_doc(incident: dict):
     return "no doc"
 
 
-def fix_incident_data(incident):
+def fix_incident_data(jira_url, incident):
     return {
         "key": incident["key"],
-        "jira_url": f"https://mozilla-hub.atlassian.net/browse/{incident['key']}",
+        "jira_url": f"{jira_url}/browse/{incident['key']}",
         "status": incident["fields"]["status"]["name"],
         "summary": incident["fields"]["summary"],
         "severity": glom(incident, "fields.customfield_10319.value", default=None),
@@ -78,8 +78,8 @@ def get_arrow_time_or_none(incident, field, fieldname):
     return value
 
 
-def generate_jira_link(incident_keys):
-    base = "https://mozilla-hub.atlassian.net/jira/software/c/projects/IIM/issues?"
+def generate_jira_link(jira_url, incident_keys):
+    base = f"{jira_url}/jira/software/c/projects/IIM/issues?"
     keys = ",".join(incident_keys)
     params = {"jql": f"project = IIM AND issuetype = Incident AND key in ({keys})"}
     return base + urllib.parse.urlencode(params)
@@ -141,6 +141,3 @@ def get_all_issues_for_project(
             break
 
     return issues
-
-
-
