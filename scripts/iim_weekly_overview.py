@@ -70,7 +70,7 @@ def iim_weekly_report(ctx):
         password=password,
     )
 
-    incidents = [fix_incident_data(incident) for incident in issue_data]
+    incidents = [fix_incident_data(jira_url=url, incident=incident) for incident in issue_data]
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     last_friday = (
@@ -113,10 +113,14 @@ def iim_weekly_report(ctx):
         num_s3_incidents=severity_breakdown.get("S3", 0),
         num_s4_incidents=severity_breakdown.get("S4", 0),
         new_incidents=new_incidents,
-        new_incidents_link=generate_jira_link([item["key"] for item in new_incidents]),
+        new_incidents_link=generate_jira_link(
+            jira_url=url,
+            incident_keys=[item["key"] for item in new_incidents],
+        ),
         active_incidents=active_incidents,
         active_incidents_link=generate_jira_link(
-            [item["key"] for item in active_incidents]
+            jira_url=url,
+            incident_keys=[item["key"] for item in active_incidents],
         ),
     )
     inliner = css_inline.CSSInliner()

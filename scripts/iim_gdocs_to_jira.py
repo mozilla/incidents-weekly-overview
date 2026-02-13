@@ -454,7 +454,7 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
             click.echo()
             click.echo("Data to update:")
             click.echo(
-                "Jira: " + f"https://mozilla-hub.atlassian.net/browse/{incident['key']}"
+                "Jira: " + f"{url}/browse/{incident['key']}"
             )
             click.echo("Status: " + incident["fields"]["status"]["name"])
 
