@@ -2,7 +2,9 @@
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
+#     "arrow",
 #     "click",
+#     "glom",
 #     "marko",
 #     "python-dotenv",
 #     "requests",
@@ -25,11 +27,14 @@ from typing import Dict
 
 import click
 from dotenv import load_dotenv
+from glom import glom
 import marko
 import requests
 from requests.auth import HTTPBasicAuth
 import rich
 from rich.table import Table
+
+from libjira import extract_doc
 
 
 load_dotenv()
@@ -217,7 +222,11 @@ DEFAULT_DATA = {
 
 
 def is_header(token):
-    return isinstance(token, marko.block.Heading)
+    return (
+        isinstance(token, marko.block.Heading)
+        and token.children
+        and isinstance(token.children[0], marko.inline.RawText)
+    )
 
 
 def is_table(token):
@@ -322,9 +331,9 @@ def metadata_table_to_dict(md):
     status = md_table["status"].strip()
     # incident report has "please select", "ongoing", "mitigated", "resolved"
     # Jira incident has "detected", "in progress", "mitigated", "resolved"
-    if status.lower() == "mitigated":
+    if status.lower().startswith("mitigated"):
         data["status"] = "Mitigated"
-    elif status.lower() == "resolved":
+    elif status.lower().startswith("resolved"):
         data["status"] = "Resolved"
     else:
         data["status"] = "In Progress"
@@ -396,13 +405,15 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
             param_hint="docs",
         )
 
-    for fn in docs:
+    for fn in sorted(docs):
         click.echo()
         with open(fn, "r") as fp:
             md_data = fp.read()
-            first_line = md_data.splitlines()[0]
-
-            if not first_line.startswith("# Incident"):
+            lines = md_data.strip().splitlines()
+            for line in lines:
+                if line.startswith("# Incident"):
+                    break
+            else:
                 click.echo(f"{fn} is not an incident report. Skipping.")
                 continue
 
@@ -428,6 +439,7 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                     updated_fields["summary"]
                     + f" ({incident['fields']['customfield_15087']})"
                 )
+            updated_fields["summary"] = updated_fields["summary"].strip()
             # Update severity fields.customfield_10319
             updated_fields["customfield_10319"] = new_data["severity"]
             # Update impact start fields.customfield_15191
@@ -453,9 +465,9 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
 
             click.echo()
             click.echo("Data to update:")
-            click.echo(
-                "Jira: " + f"{url}/browse/{incident['key']}"
+            click.echo(f"Jira:{url}/browse/{incident['key']}"
             )
+            click.echo(f"Incident Report: {extract_doc(incident)}")
             click.echo("Status: " + incident["fields"]["status"]["name"])
 
             table = Table()
@@ -482,7 +494,7 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 ("resolved (ts)", "customfield_12887"),
             ):
                 if name in ("severity", "detection method"):
-                    current_value = {"value": incident["fields"][field]["value"]}
+                    current_value = {"value": glom(incident, f"fields.{field}.value", default=None)}
                 else:
                     current_value = incident["fields"][field]
                 table.add_row(name, str(current_value), str(updated_fields[field]))
@@ -495,8 +507,11 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
             if not commit:
                 click.echo("Not committing to Jira. Pass --commit to commit.")
             else:
-                click.echo("Ok to commit?")
-                input()
+                click.echo("ENTER to commit, CTRL-C to exit, S to skip")
+                user_input = input()
+                if user_input.strip().lower() == "s":
+                    continue
+
                 click.echo("Committing to Jira ...")
                 if incident["fields"]["status"]["name"] != new_data["status"]:
                     update_jira_issue_status(
