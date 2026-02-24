@@ -54,7 +54,7 @@ def fix_incident_data(jira_url, incident):
         "jira_url": f"{jira_url}/browse/{incident['key']}",
         "status": incident["fields"]["status"]["name"],
         "summary": incident["fields"]["summary"],
-        "severity": glom(incident, "fields.customfield_10319.value", default=None),
+        "severity": glom(incident, "fields.customfield_10319.value", default="undetermined"),
         "report_url": extract_doc(incident),
         "declare date": glom(incident, "fields.customfield_15087", default=None),
         "impact start": glom(incident, "fields.customfield_15191", default=None),
