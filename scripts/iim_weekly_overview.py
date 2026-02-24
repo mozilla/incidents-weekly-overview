@@ -22,12 +22,14 @@ Computes a weekly report for incidents.
 """
 
 import os
+from datetime import timedelta
 
 import arrow
 import click
 import css_inline
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+import rich
 
 from libjira import (
     fix_incident_data,
@@ -40,6 +42,31 @@ OVERVIEWS_DIR = "incident_overviews"
 
 
 load_dotenv()
+
+
+def humanize_timedelta(td: timedelta) -> str:
+    total_seconds = int(td.total_seconds())
+    sign = "-" if total_seconds < 0 else ""
+    total_seconds = abs(total_seconds)
+
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+    if days:
+        parts.append(f"{days:,}d")
+    if hours:
+        parts.append(f"{hours:,}h")
+    if minutes:
+        parts.append(f"{minutes:,}m")
+    if seconds or not parts:
+        parts.append(f"{seconds:,}s")
+
+    # Only take the two most significant parts
+    parts = parts[:2]
+
+    return sign + " ".join(parts)
 
 
 @click.command()
@@ -71,6 +98,19 @@ def iim_weekly_report(ctx):
     )
 
     incidents = [fix_incident_data(jira_url=url, incident=incident) for incident in issue_data]
+
+    # Calculate incident outage time
+    now = arrow.now()
+    for incident in incidents:
+        start_ts = incident["impact start"] or incident["detected"]
+        if not start_ts:
+            incident["duration"] = "unknown"
+            continue
+        if incident["mitigated"]:
+            end_ts = arrow.get(incident["mitigated"])
+            incident["duration"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+        else:
+            incident["duration"] = humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     last_friday = (

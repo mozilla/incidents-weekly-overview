@@ -198,7 +198,10 @@
           <td><a href="{{ item['jira_url'] }}">{{ item['key'] }}</a></td>
           <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
           <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
-          <td><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></td>
+          <td>
+            <a href="{{ item['report_url'] }}">{{ item['summary'] }}</a><br>
+            Duration: {{ item['duration'] }}
+          </td>
         </tr>
       {% endfor %}
     </table>
@@ -225,7 +228,10 @@
           <td><a href="{{ item['jira_url'] }}">{{ item['key'] }}</a></td>
           <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
           <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
-          <td><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></td>
+          <td>
+            <a href="{{ item['report_url'] }}">{{ item['summary'] }}</a><br>
+            Duration: {{ item['duration'] }}
+          </td>
         </tr>
       {% endfor %}
     </table>
