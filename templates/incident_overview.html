@@ -89,6 +89,26 @@
     color: #1f2937;
   }
 
+  span.summary {
+    font-size: 14px;
+    display: inline-block;
+    padding-bottom: 5px;
+  }
+
+  span.key {
+    font-weight: 700;
+  }
+
+  span.entity {
+    /* font-weight: 700; */
+    padding: 0px 6px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    background: #E2E2E2;
+    color: #1B1B1B;
+    border-color: #A5A5A5;
+  }
+
   span.status {
     font-weight: 700;
     font-size: 12px;
@@ -199,8 +219,15 @@
           <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
           <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
           <td>
-            <a href="{{ item['report_url'] }}">{{ item['summary'] }}</a><br>
-            Duration: {{ item['duration'] }}
+            <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span><br>
+            <span class="key">Entities:</span>
+            {% for entity in item['entities'] %}
+               <span class="entity">{{ entity }}</span>
+            {% endfor %}
+            &mdash;
+            <span class="key">TTD:</span> {{ item['ttd'] }}
+            &mdash;
+            <span class="key">TTM:</span> {{ item['ttm'] }}
           </td>
         </tr>
       {% endfor %}
@@ -229,8 +256,15 @@
           <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
           <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
           <td>
-            <a href="{{ item['report_url'] }}">{{ item['summary'] }}</a><br>
-            Duration: {{ item['duration'] }}
+            <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span><br>
+            <span class="key">Entities:</span>
+            {% for entity in item['entities'] %}
+               <span class="entity">{{ entity }}</span>
+            {% endfor %}
+            &mdash;
+            <span class="key">TTD:</span> {{ item['ttd'] }}
+            &mdash;
+            <span class="key">TTM:</span> {{ item['ttm'] }}
           </td>
         </tr>
       {% endfor %}
