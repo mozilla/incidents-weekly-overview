@@ -102,15 +102,26 @@ def iim_weekly_report(ctx):
     # Calculate incident outage time
     now = arrow.now()
     for incident in incidents:
+        timings = {
+            "ttd": "?",
+            "ttm": "?",
+        }
         start_ts = incident["impact start"] or incident["detected"]
         if not start_ts:
-            incident["duration"] = "unknown"
+            incident.update(timings)
             continue
+
+        if incident["detected"]:
+            end_ts = arrow.get(incident["detected"])
+            timings["ttd"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+
         if incident["mitigated"]:
             end_ts = arrow.get(incident["mitigated"])
-            incident["duration"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+            timings["ttm"] = humanize_timedelta(end_ts - arrow.get(start_ts))
         else:
-            incident["duration"] = humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
+            timings["ttm"] = humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
+
+        incident.update(timings)
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     last_friday = (
