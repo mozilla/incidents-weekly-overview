@@ -25,6 +25,7 @@ import os
 import re
 from typing import Dict
 
+import arrow
 import click
 from dotenv import load_dotenv
 from glom import glom
@@ -484,7 +485,7 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
             for name, field in (
                 ("summary", "summary"),
                 ("severity", "customfield_10319"),
-                ("impact start", "customfield_15191"),
+                ("impact start (ts)", "customfield_15191"),
                 ("detection method", "customfield_12881"),
                 ("detected (ts)", "customfield_12882"),
                 ("alerted (ts)", "customfield_12883"),
@@ -497,7 +498,22 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                     current_value = {"value": glom(incident, f"fields.{field}.value", default=None)}
                 else:
                     current_value = incident["fields"][field]
-                table.add_row(name, str(current_value), str(updated_fields[field]))
+
+                new_value = updated_fields[field]
+
+                if name.endswith("(ts)"):
+                    if current_value is not None:
+                        current_value = arrow.get(current_value).to("UTC")
+                    if new_value is not None:
+                        new_value = arrow.get(new_value).to("UTC")
+
+                current_value = str(current_value)
+                new_value = str(new_value)
+
+                if current_value != new_value:
+                    current_value = f"[yellow]{current_value}[/yellow]"
+                    new_value = f"[yellow]{new_value}[/yellow]"
+                table.add_row(name, current_value, new_value)
 
             rich.print(table)
             click.echo()
