@@ -29,7 +29,6 @@ import click
 import css_inline
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-import rich
 
 from libjira import (
     fix_incident_data,
@@ -179,7 +178,7 @@ def iim_weekly_report(ctx):
 
     # NOTE(willkg): arrow only does YYYY-MM-DD. we can't get it to do YYYYMMDD
     # or YYYY_MM_DD. it's unclear why.
-    file_friendly_date = last_friday.format("YYYY-MM-DD").replace("-", "")
+    file_friendly_date = this_friday.format("YYYY-MM-DD").replace("-", "")
     fn = os.path.join(OVERVIEWS_DIR, f"incident_overview_{file_friendly_date}.html")
     with open(fn, "w") as fp:
         fp.write(fixed_html)

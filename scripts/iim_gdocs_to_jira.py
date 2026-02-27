@@ -471,6 +471,8 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
             click.echo(f"Incident Report: {extract_doc(incident)}")
             click.echo("Status: " + incident["fields"]["status"]["name"])
 
+            changes = False
+
             table = Table()
             table.add_column("field")
             table.add_column("current")
@@ -494,7 +496,6 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 ("mitigated (ts)", "customfield_12886"),
                 ("resolved (ts)", "customfield_12887"),
             ):
-                changes = False
                 if name in ("severity", "detection method"):
                     current_value = {"value": glom(incident, f"fields.{field}.value", default=None)}
                 else:
