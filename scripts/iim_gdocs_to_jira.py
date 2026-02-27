@@ -494,6 +494,7 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 ("mitigated (ts)", "customfield_12886"),
                 ("resolved (ts)", "customfield_12887"),
             ):
+                changes = False
                 if name in ("severity", "detection method"):
                     current_value = {"value": glom(incident, f"fields.{field}.value", default=None)}
                 else:
@@ -513,15 +514,22 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 if current_value != new_value:
                     current_value = f"[yellow]{current_value}[/yellow]"
                     new_value = f"[yellow]{new_value}[/yellow]"
+                    changes = True
                 table.add_row(name, current_value, new_value)
 
             rich.print(table)
             click.echo()
-            click.echo("Note: Jira returns timestamps in local timezone.")
-            click.echo()
 
-            if not commit:
+            if not changes:
+                click.echo("Nothing to change.")
+                click.echo("Next?")
+                user_input = input()
+
+            elif not commit:
                 click.echo("Not committing to Jira. Pass --commit to commit.")
+                click.echo("Next?")
+                user_input = input()
+
             else:
                 click.echo("ENTER to commit, CTRL-C to exit, S to skip")
                 user_input = input()
