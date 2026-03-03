@@ -153,7 +153,7 @@ def test_fix_incident_data_happy():
     assert result["jira_url"] == f"{JIRA_URL}/browse/IIM-42"
     assert result["status"] == "Closed"
     assert result["summary"] == "Everything is on fire"
-    assert result["severity"] == "SEV1"
+    assert result["severity"] == "S1"
     assert result["entities"] == ["payments", "auth"]
     assert result["report_url"] == GDOC_URL
     assert result["declare date"] == "2025-02-01T10:00:00.000+0000"

@@ -64,7 +64,9 @@ def iim_active(ctx):
         password=password,
     )
 
-    incidents = [fix_incident_data(jira_url=url, incident=incident) for incident in issue_data]
+    incidents = [
+        fix_incident_data(jira_url=url, incident=incident) for incident in issue_data
+    ]
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     two_weeks_ago = arrow.now().shift(days=-14).format("YYYY-MM-DD")
@@ -78,7 +80,9 @@ def iim_active(ctx):
     click.echo(f"# Recently resolved incidents ({len(resolved_incidents)}):")
     click.echo()
     for incident in resolved_incidents:
-        rich.print(f"{incident['key']}  {incident['summary']}  ({incident['entities']})")
+        rich.print(
+            f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
+        )
         rich.print(incident["resolved"])
         rich.print(incident["jira_url"])
         rich.print(incident["report_url"])
@@ -89,7 +93,9 @@ def iim_active(ctx):
     click.echo(f"# Active incidents ({len(active_incidents)}):")
     click.echo()
     for incident in active_incidents:
-        rich.print(f"{incident['key']}  {incident['summary']}  ({incident['entities']})")
+        rich.print(
+            f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
+        )
         rich.print(incident["jira_url"])
         rich.print(incident["report_url"])
         click.echo()

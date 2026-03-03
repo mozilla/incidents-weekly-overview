@@ -289,7 +289,7 @@ def md_to_dict(md):
                 while tokens:
                     token = tokens.pop(0)
                     if is_table(token):
-                        action_items_table = token
+                        action_items_table = token  # noqa: F841
                         break
 
     # Parse metadata table and update data
@@ -466,8 +466,7 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
 
             click.echo()
             click.echo("Data to update:")
-            click.echo(f"Jira:{url}/browse/{incident['key']}"
-            )
+            click.echo(f"Jira:{url}/browse/{incident['key']}")
             click.echo(f"Incident Report: {extract_doc(incident)}")
             click.echo("Status: " + incident["fields"]["status"]["name"])
 
@@ -497,7 +496,9 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 ("resolved (ts)", "customfield_12887"),
             ):
                 if name in ("severity", "detection method"):
-                    current_value = {"value": glom(incident, f"fields.{field}.value", default=None)}
+                    current_value = {
+                        "value": glom(incident, f"fields.{field}.value", default=None)
+                    }
                 else:
                     current_value = incident["fields"][field]
 
