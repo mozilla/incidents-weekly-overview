@@ -12,4 +12,5 @@ dependencies = [
 dev = [
     "pytest",
     "responses",
+    "ruff",
 ]

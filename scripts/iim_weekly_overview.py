@@ -96,7 +96,9 @@ def iim_weekly_report(ctx):
         password=password,
     )
 
-    incidents = [fix_incident_data(jira_url=url, incident=incident) for incident in issue_data]
+    incidents = [
+        fix_incident_data(jira_url=url, incident=incident) for incident in issue_data
+    ]
 
     # Calculate incident outage time
     now = arrow.now()
@@ -118,7 +120,9 @@ def iim_weekly_report(ctx):
             end_ts = arrow.get(incident["mitigated"])
             timings["ttm"] = humanize_timedelta(end_ts - arrow.get(start_ts))
         else:
-            timings["ttm"] = humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
+            timings["ttm"] = (
+                humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
+            )
 
         incident.update(timings)
 
