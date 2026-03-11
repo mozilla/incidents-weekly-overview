@@ -267,17 +267,16 @@ def md_to_dict(md):
     while tokens:
         token = tokens.pop(0)
         if is_header(token):
-            # <Heading children=[<RawText children=TEXT>...]>
-            text = token.children[0].children
-            if text.startswith("Incident: "):
-                data["summary"] = text.strip()[10:]
+            header_text = get_text(token)
+            if header_text.startswith("Incident: "):
+                data["summary"] = header_text.strip()[10:]
                 while tokens:
                     token = tokens.pop(0)
                     if is_table(token):
                         metadata_table = token
                         break
 
-            if text.startswith("Postmortem Action Items"):
+            if header_text.startswith("Postmortem Action Items"):
                 while tokens:
                     token = tokens.pop(0)
                     if is_table(token):
