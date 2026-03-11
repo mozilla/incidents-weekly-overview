@@ -16,10 +16,10 @@ jobs:
           python-version: "3.13"
 
       - name: Lint
-        run: uv run ruff check scripts/*.py
+        run: uv run ruff check src/ tests/
 
       - name: Format
-        run: uv run ruff format --check scripts/*.py
+        run: uv run ruff format --check src/ tests/
 
       - name: Test
         run: uv run pytest tests/ -v
