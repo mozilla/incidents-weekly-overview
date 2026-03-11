@@ -1,16 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "incidents-weekly-overview"
+name = "iim"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
     "arrow",
     "click",
+    "css-inline",
     "glom",
+    "google-api-python-client",
+    "google-auth-httplib2",
+    "google-auth-oauthlib",
+    "jinja2",
     "marko",
     "python-dotenv",
     "requests",
     "rich",
+    "tzlocal",
 ]
+
+[project.scripts]
+iim-active = "iim.iim_active:iim_active"
+iim-gdocs-to-jira = "iim.iim_gdocs_to_jira:iim_google_docs_to_jira"
+iim-weekly-overview = "iim.iim_weekly_overview:iim_weekly_report"
+iim-gdoc-download = "iim.iim_gdoc_download:iim_gdoc_download"
+convert-timezone = "iim.convert_timezone:convert_timezone"
 
 [dependency-groups]
 dev = [

@@ -5,7 +5,7 @@ test:
     uv run pytest tests/
 
 lint:
-    uv run ruff check scripts/*.py
+    uv run ruff check src/ tests/
 
 format:
-    uv run ruff format scripts/*.py
+    uv run ruff format src/ tests/

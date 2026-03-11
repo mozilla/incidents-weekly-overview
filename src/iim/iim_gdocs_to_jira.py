@@ -1,17 +1,3 @@
-#!/usr/bin/env python
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "arrow",
-#     "click",
-#     "glom",
-#     "marko",
-#     "python-dotenv",
-#     "requests",
-#     "rich",
-# ]
-# ///
-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -25,7 +11,6 @@ import os
 import re
 from typing import Dict
 
-import arrow
 import click
 from dotenv import load_dotenv
 from glom import glom
@@ -35,7 +20,7 @@ from requests.auth import HTTPBasicAuth
 import rich
 from rich.table import Table
 
-from libjira import extract_doc
+from iim.libjira import extract_doc
 
 
 load_dotenv()
@@ -54,14 +39,18 @@ def extract_jira_issue(value):
     raise Exception(f"{value!r} has no jira issue key")
 
 
-def extract_datestamp(value):
-    """Extract datetime or date and return in iso8601 format for UTC"""
+def extract_timestamp(value):
+    """Extract datetime or date and return in YYYY-MM-DD hh:mm format"""
+    if value is None:
+        return None
+
     match = DATETIME_RE.search(value)
     if match:
-        return match[0][0:10] + "T" + match[0][11:16] + ":00.000-0000"
+        return match[0]
+
     match = DATE_RE.search(value)
     if match:
-        return match[0] + "T00:00:00.000-0000"
+        return match[0] + " 00:00"
     return None
 
 
@@ -195,6 +184,7 @@ METADATA_LABEL_TO_FIELD = {
     "jira ticket/bug number": "issues",
     "issue detected via": "detection method",
     "current status": "status",
+    "time declared": "declared",
     "time of first impact": "impact start",
     "time detected": "detected",
     "time alerted": "alerted",
@@ -211,8 +201,10 @@ DEFAULT_DATA = {
     "severity": None,
     "detection method": None,
     "status": None,
+    "declare date": None,
     # timestamps in UTC in YYYY-MM-DD HH:MM format
     "impact start": None,
+    "declared": None,
     "detected": None,
     "alerted": None,
     "acknowledged": None,
@@ -351,9 +343,6 @@ def metadata_table_to_dict(md):
     else:
         data["severity"] = None
 
-    # Update impact start fields.custom_field_15191
-    data["impact start"] = extract_datestamp(md_table["impact start"])
-
     # Update detection method
     if "Manual/Human" in md_table["detection method"]:
         data["detection method"] = {"value": "Manual"}
@@ -363,27 +352,28 @@ def metadata_table_to_dict(md):
         data["detection method"] = None
 
     # TODO: update services
-    # Update detected timestamp fields.customfield_12882
-    data["detected"] = extract_datestamp(md_table["detected"])
-    # Update alerted timestamp fields.customfield_12883
-    data["alerted"] = extract_datestamp(md_table["alerted"])
-    # Update acknowledged timestamp fields.customfield_12884
-    data["acknowledged"] = extract_datestamp(md_table["acknowledged"])
-    # Update responded timestamp fields.customfield_12885
-    data["responded"] = extract_datestamp(md_table["responded"])
-    # Update mitigated timestamp fields.customfield_12886
-    data["mitigated"] = extract_datestamp(md_table["mitigated"])
-    # Update resolved timestamp fields.customfield_12887
-    data["resolved"] = extract_datestamp(md_table["resolved"])
+
+    data["impact start"] = extract_timestamp(md_table["impact start"])
+    data["declared"] = extract_timestamp(md_table.get("declared"))
+    data["detected"] = extract_timestamp(md_table["detected"])
+    data["alerted"] = extract_timestamp(md_table["alerted"])
+    data["acknowledged"] = extract_timestamp(md_table["acknowledged"])
+    data["responded"] = extract_timestamp(md_table["responded"])
+    data["mitigated"] = extract_timestamp(md_table["mitigated"])
+    data["resolved"] = extract_timestamp(md_table["resolved"])
+
+    # declare date isn't in the table--we derive it from declared
+    if data["declared"]:
+        data["declare date"] = data["declared"].split("T")[0]
 
     return data
 
 
 @click.command()
-@click.option("--commit/--no-commit", default=False)
+@click.option("--dry-run", default=False, is_flag=True)
 @click.argument("docs", nargs=-1)
 @click.pass_context
-def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, ...]):
+def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, ...]):
     """
     Prompts user for google doc metadata as markdown. Parses the markdown and
     extracts updated metadata and issue key. Pushes information to Jira.
@@ -392,11 +382,11 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
 
     \b
     * JIRA_USERNAME
-    * JIRA_PASSWORD
+    * JIRA_TOKEN
     * JIRA_URL
     """
     username = os.environ["JIRA_USERNAME"].strip()
-    password = os.environ["JIRA_PASSWORD"].strip()
+    password = os.environ["JIRA_TOKEN"].strip()
     url = os.environ["JIRA_URL"].strip().rstrip("/")
 
     if not docs:
@@ -441,26 +431,30 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                     + f" ({incident['fields']['customfield_15087']})"
                 )
             updated_fields["summary"] = updated_fields["summary"].strip()
-            # Update severity fields.customfield_10319
             updated_fields["customfield_10319"] = new_data["severity"]
-            # Update impact start fields.customfield_15191
-            updated_fields["customfield_15191"] = new_data["impact start"]
-            # Update detection method fields.customfield_12881
             updated_fields["customfield_12881"] = new_data["detection method"]
-            # Update detected timestamp fields.customfield_12882
-            updated_fields["customfield_12882"] = new_data["detected"]
-            # Update alerted timestamp fields.customfield_12883
-            updated_fields["customfield_12883"] = new_data["alerted"]
-            # Update acknowledged timestamp fields.customfield_12884
-            updated_fields["customfield_12884"] = new_data["acknowledged"]
-            # Update responded timestamp fields.customfield_12885
-            updated_fields["customfield_12885"] = new_data["responded"]
-            # Update mitigated timestamp fields.customfield_12886
-            updated_fields["customfield_12886"] = new_data["mitigated"]
-            # Update resolved timestamp fields.customfield_12887
-            updated_fields["customfield_12887"] = new_data["resolved"]
+            updated_fields["customfield_18693"] = new_data["impact start"]
+            updated_fields["customfield_18694"] = new_data["detected"]
+            updated_fields["customfield_18695"] = new_data["alerted"]
+            updated_fields["customfield_18696"] = new_data["acknowledged"]
+            updated_fields["customfield_18697"] = new_data["responded"]
+            updated_fields["customfield_18698"] = new_data["mitigated"]
+            updated_fields["customfield_18699"] = new_data["resolved"]
 
-            # TODO: Update status -- have to do this with a transition
+            # Don't update these if the update is to set them to None
+            if new_data["declare date"]:
+                updated_fields["customfield_15087"] = new_data["declare date"]
+            else:
+                updated_fields["customfield_15087"] = glom(
+                    incident, "fields.customfield_15087"
+                )
+            if new_data["declared"]:
+                updated_fields["customfield_18692"] = new_data["declared"]
+            else:
+                updated_fields["customfield_18692"] = glom(
+                    incident, "fields.customfield_18692"
+                )
+
             # TODO: Update services
             # TODO: Update post-mortem actions -- not in metadata
 
@@ -486,14 +480,16 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
             for name, field in (
                 ("summary", "summary"),
                 ("severity", "customfield_10319"),
-                ("impact start (ts)", "customfield_15191"),
                 ("detection method", "customfield_12881"),
-                ("detected (ts)", "customfield_12882"),
-                ("alerted (ts)", "customfield_12883"),
-                ("acknowledged (ts)", "customfield_12884"),
-                ("responded (ts)", "customfield_12885"),
-                ("mitigated (ts)", "customfield_12886"),
-                ("resolved (ts)", "customfield_12887"),
+                ("declare date", "customfield_15087"),
+                ("impact start (ts)", "customfield_18693"),
+                ("time declared (ts)", "customfield_18692"),
+                ("time detected (ts)", "customfield_18694"),
+                ("time alerted (ts)", "customfield_18695"),
+                ("time acknowledged (ts)", "customfield_18696"),
+                ("time responded (ts)", "customfield_18697"),
+                ("time mitigated (ts)", "customfield_18698"),
+                ("time resolved (ts)", "customfield_18699"),
             ):
                 if name in ("severity", "detection method"):
                     current_value = {
@@ -502,16 +498,8 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 else:
                     current_value = incident["fields"][field]
 
-                new_value = updated_fields[field]
-
-                if name.endswith("(ts)"):
-                    if current_value is not None:
-                        current_value = arrow.get(current_value).to("UTC")
-                    if new_value is not None:
-                        new_value = arrow.get(new_value).to("UTC")
-
                 current_value = str(current_value)
-                new_value = str(new_value)
+                new_value = str(updated_fields[field])
 
                 if current_value != new_value:
                     current_value = f"[yellow]{current_value}[/yellow]"
@@ -527,8 +515,8 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 click.echo("Next?")
                 user_input = input()
 
-            elif not commit:
-                click.echo("Not committing to Jira. Pass --commit to commit.")
+            elif dry_run:
+                click.echo("Dry-run mode. Pass without --dry-run to commit.")
                 click.echo("Next?")
                 user_input = input()
 
@@ -556,7 +544,3 @@ def iim_google_docs_to_jira(ctx: click.Context, commit: bool, docs: tuple[str, .
                 )
 
     click.echo("Done!")
-
-
-if __name__ == "__main__":
-    iim_google_docs_to_jira()

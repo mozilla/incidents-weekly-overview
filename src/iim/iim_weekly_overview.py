@@ -1,18 +1,3 @@
-#!/usr/bin/env python
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "arrow",
-#     "click",
-#     "css_inline",
-#     "glom",
-#     "jinja2",
-#     "python-dotenv",
-#     "requests",
-#     "rich",
-# ]
-# ///
-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -30,7 +15,7 @@ import css_inline
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from libjira import (
+from iim.libjira import (
     fix_incident_data,
     generate_jira_link,
     get_all_issues_for_project,
@@ -73,17 +58,17 @@ def humanize_timedelta(td: timedelta) -> str:
 def iim_weekly_report(ctx):
     """
     Computes a weekly report based on Jira data. Make sure to update the data
-    in Jira and then run `iim_data.py` before running the report.
+    in Jira before running this report.
 
     Create an API token in Jira and set these in the `.env` file:
 
     \b
     * JIRA_USERNAME
-    * JIRA_PASSWORD
+    * JIRA_TOKEN
     * JIRA_URL
     """
     username = os.environ["JIRA_USERNAME"].strip()
-    password = os.environ["JIRA_PASSWORD"].strip()
+    password = os.environ["JIRA_TOKEN"].strip()
     url = os.environ["JIRA_URL"].strip().rstrip("/")
 
     if not os.path.exists(OVERVIEWS_DIR):
@@ -104,23 +89,30 @@ def iim_weekly_report(ctx):
     now = arrow.now()
     for incident in incidents:
         timings = {
-            "ttd": "?",
-            "ttm": "?",
+            "tt-dec": "?",
+            "tt-det": "?",
+            "tt-mit": "?",
         }
         start_ts = incident["impact start"] or incident["detected"]
         if not start_ts:
             incident.update(timings)
             continue
 
+        # NOTE: We don't have good declared data prior to September 15th, 2025,
+        # so don't calculate it if before that date.
+        if incident["declared"] and incident["declared"] > "2025-09-15":
+            end_ts = arrow.get(incident["declared"])
+            timings["tt-dec"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+
         if incident["detected"]:
             end_ts = arrow.get(incident["detected"])
-            timings["ttd"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+            timings["tt-det"] = humanize_timedelta(end_ts - arrow.get(start_ts))
 
         if incident["mitigated"]:
             end_ts = arrow.get(incident["mitigated"])
-            timings["ttm"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+            timings["tt-mit"] = humanize_timedelta(end_ts - arrow.get(start_ts))
         else:
-            timings["ttm"] = (
+            timings["tt-mit"] = (
                 humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
             )
 
@@ -188,7 +180,3 @@ def iim_weekly_report(ctx):
         fp.write(fixed_html)
 
     click.echo(f"Report written to: {fn}")
-
-
-if __name__ == "__main__":
-    iim_weekly_report()

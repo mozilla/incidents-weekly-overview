@@ -8,8 +8,8 @@ import pytest
 import requests
 import responses as responses_lib
 
-from iim_gdocs_to_jira import (
-    extract_datestamp,
+from iim.iim_gdocs_to_jira import (
+    extract_timestamp,
     extract_jira_issue,
     get_issue_data,
     md_to_dict,
@@ -27,12 +27,12 @@ PASSWORD = "pass"
 
 
 @pytest.fixture
-def merino_md():
+def service_alpha_md():
     return (REPORTS_DIR / "iim_131_service_alpha.md").read_text()
 
 
 @pytest.fixture
-def autopush_md():
+def bravoservice_md():
     return (REPORTS_DIR / "iim_133_bravoservice.md").read_text()
 
 
@@ -42,7 +42,10 @@ def autopush_md():
 
 
 def test_extract_jira_issue_link():
-    assert extract_jira_issue("[IIM-131](https://jira.example.com/browse/IIM-131)") == "IIM-131"
+    assert (
+        extract_jira_issue("[IIM-131](https://jira.example.com/browse/IIM-131)")
+        == "IIM-131"
+    )
 
 
 def test_extract_jira_issue_bare_key():
@@ -55,20 +58,28 @@ def test_extract_jira_issue_no_key():
 
 
 # ---------------------------------------------------------------------------
-# extract_datestamp
+# extract_timestamp
 # ---------------------------------------------------------------------------
 
 
-def test_extract_datestamp_datetime():
-    assert extract_datestamp("2026-02-21 08:57") == "2026-02-21T08:57:00.000-0000"
-
-
-def test_extract_datestamp_date_only():
-    assert extract_datestamp("2026-02-21") == "2026-02-21T00:00:00.000-0000"
-
-
-def test_extract_datestamp_no_match():
-    assert extract_datestamp("no date here") is None
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # date and time
+        ("2026-02-21 08:57", "2026-02-21 08:57"),
+        (
+            " bunch of text 2026-02-21 08:57 bunch of text",
+            "2026-02-21 08:57",
+        ),
+        # just the date -- converts to midnight
+        ("2026-02-21", "2026-02-21 00:00"),
+        # no dates -- return None
+        ("non-date", None),
+        (None, None),
+    ],
+)
+def test_extract_timestamp(text, expected):
+    assert extract_timestamp(text) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -76,8 +87,8 @@ def test_extract_datestamp_no_match():
 # ---------------------------------------------------------------------------
 
 
-def test_md_to_dict_merino(merino_md):
-    data = md_to_dict(merino_md)
+def test_md_to_dict_merino(service_alpha_md):
+    data = md_to_dict(service_alpha_md)
     assert data["key"] == "IIM-131"
     assert data["severity"] == {"value": "S2"}
     assert data["detection method"] == {"value": "Manual"}
@@ -87,8 +98,8 @@ def test_md_to_dict_merino(merino_md):
     assert data["mitigated"] is not None
 
 
-def test_md_to_dict_autopush(autopush_md):
-    data = md_to_dict(autopush_md)
+def test_md_to_dict_autopush(bravoservice_md):
+    data = md_to_dict(bravoservice_md)
     assert data["key"] == "IIM-133"
     assert data["severity"] == {"value": "S3"}
     assert data["detection method"] == {"value": "Automation"}
@@ -123,9 +134,9 @@ def test_metadata_table_to_dict_happy():
     assert data["severity"] == {"value": "S2"}
     assert data["status"] == "Mitigated"
     assert data["detection method"] == {"value": "Manual"}
-    assert data["impact start"] == "2026-01-01T10:00:00.000-0000"
-    assert data["mitigated"] == "2026-01-01T11:00:00.000-0000"
-    assert data["resolved"] == "2026-01-01T12:00:00.000-0000"
+    assert data["impact start"] == "2026-01-01 10:00"
+    assert data["mitigated"] == "2026-01-01 11:00"
+    assert data["resolved"] == "2026-01-01 12:00"
 
 
 # ---------------------------------------------------------------------------

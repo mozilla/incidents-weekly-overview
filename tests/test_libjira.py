@@ -9,7 +9,7 @@ import pytest
 import responses as responses_lib
 import requests
 
-from libjira import (
+from iim.libjira import (
     convert_datestamp,
     extract_doc,
     fix_incident_data,
