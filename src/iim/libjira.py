@@ -62,16 +62,17 @@ def fix_incident_data(jira_url, incident):
         ),
         "report_url": extract_doc(incident),
         "declare date": glom(incident, "fields.customfield_15087", default=None),
-        "impact start": glom(incident, "fields.customfield_15191", default=None),
         "detection method": glom(
             incident, "fields.customfield_12881.value", default=None
         ),
-        "detected": glom(incident, "fields.customfield_12882", default=None),
-        "alerted": glom(incident, "fields.customfield_12883", default=None),
-        "acknowledged": glom(incident, "fields.customfield_12884", default=None),
-        "responded": glom(incident, "fields.customfield_12885", default=None),
-        "mitigated": glom(incident, "fields.customfield_12886", default=None),
-        "resolved": glom(incident, "fields.customfield_12887", default=None),
+        "impact start": glom(incident, "fields.customfield_18693", default=None),
+        "declared": glom(incident, "fields.customfield_18692", default=None),
+        "detected": glom(incident, "fields.customfield_18694", default=None),
+        "alerted": glom(incident, "fields.customfield_18695", default=None),
+        "acknowledged": glom(incident, "fields.customfield_18696", default=None),
+        "responded": glom(incident, "fields.customfield_18697", default=None),
+        "mitigated": glom(incident, "fields.customfield_18698", default=None),
+        "resolved": glom(incident, "fields.customfield_18699", default=None),
     }
 
 

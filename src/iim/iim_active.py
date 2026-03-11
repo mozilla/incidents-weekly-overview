@@ -1,16 +1,3 @@
-#!/usr/bin/env python
-# /// script
-# requires-python = ">=3.13"
-# dependencies = [
-#     "arrow",
-#     "click",
-#     "glom",
-#     "python-dotenv",
-#     "requests",
-#     "rich",
-# ]
-# ///
-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -27,7 +14,7 @@ import click
 from dotenv import load_dotenv
 import rich
 
-from libjira import (
+from iim.libjira import (
     fix_incident_data,
     get_all_issues_for_project,
 )
@@ -40,8 +27,14 @@ load_dotenv()
 
 
 @click.command()
+@click.option(
+    "--details/--no-details",
+    default="True",
+    show_default=True,
+    help="Whether or not to print all the details or just the urls.",
+)
 @click.pass_context
-def iim_active(ctx):
+def iim_active(ctx, details):
     """
     Computes a list of recently resolved incidents and a list of active
     incidents from Jira incident data.
@@ -50,11 +43,11 @@ def iim_active(ctx):
 
     \b
     * JIRA_USERNAME
-    * JIRA_PASSWORD
+    * JIRA_TOKEN
     * JIRA_URL
     """
     username = os.environ["JIRA_USERNAME"].strip()
-    password = os.environ["JIRA_PASSWORD"].strip()
+    password = os.environ["JIRA_TOKEN"].strip()
     url = os.environ["JIRA_URL"].strip().rstrip("/")
 
     issue_data = get_all_issues_for_project(
@@ -76,30 +69,32 @@ def iim_active(ctx):
         for item in incidents
         if item["resolved"] and item["resolved"] > two_weeks_ago
     ]
-    click.echo()
-    click.echo(f"# Recently resolved incidents ({len(resolved_incidents)}):")
-    click.echo()
-    for incident in resolved_incidents:
-        rich.print(
-            f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
-        )
-        rich.print(incident["resolved"])
-        rich.print(incident["jira_url"])
-        rich.print(incident["report_url"])
+    if details:
         click.echo()
+        click.echo(f"# Recently resolved incidents ({len(resolved_incidents)}):")
+        click.echo()
+    for incident in resolved_incidents:
+        if details:
+            rich.print(
+                f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
+            )
+            rich.print(incident["resolved"])
+            rich.print(incident["jira_url"])
+        rich.print(incident["report_url"])
+        if details:
+            click.echo()
 
     active_incidents = [item for item in incidents if item["status"] != "Resolved"]
-    click.echo()
-    click.echo(f"# Active incidents ({len(active_incidents)}):")
-    click.echo()
-    for incident in active_incidents:
-        rich.print(
-            f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
-        )
-        rich.print(incident["jira_url"])
-        rich.print(incident["report_url"])
+    if details:
         click.echo()
-
-
-if __name__ == "__main__":
-    iim_active()
+        click.echo(f"# Active incidents ({len(active_incidents)}):")
+        click.echo()
+    for incident in active_incidents:
+        if details:
+            rich.print(
+                f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
+            )
+            rich.print(incident["jira_url"])
+        rich.print(incident["report_url"])
+        if details:
+            click.echo()

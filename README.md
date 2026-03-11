@@ -7,15 +7,16 @@ Code for Weekly Incidents Overview email, tooling, etc
 Copy `env.tmpl` to `.env` and then fill in the three values per the
 instructions in the file.
 
-Scripts are run directly from a repository checkout.
+Run `uv sync` from the repository root to install the package and its
+dependencies.
 
 # usage
 
-`uv run scripts/iim_active.py`
+`uv run iim-active`
 
 Queries Jira and outputs a list of active incidents.
 
-`uv run scripts/iim_gdocs_to_jira.py [FILE...]`
+`uv run iim-gdocs-to-jira [FILE...]`
 
 Given a set of Markdown files generated from doing "File -> Download ->
 Markdown" in Google Docs for each incident report, this queries Jira,
@@ -26,7 +27,12 @@ push changes to Jira.
 
 **Note: Make sure your Markdown files aren't stale.**
 
-`uv run scripts/iim_weekly_overview.py`
+`uv run iim-gdoc-download [GDOC_URL...]`
+
+Downloads one or more Google Docs as Markdown files into the `reports/`
+directory. URLs can also be piped via stdin.
+
+`uv run iim-weekly-overview`
 
 Queries Jira and generates a weekly overview as HTML in the
 `incident_overviews` directory.
@@ -36,14 +42,13 @@ to the incidents-overview mailing list.
 
 # dev things
 
-Uses [just](https://just.systems/`) for project commands.
+Uses [just](https://just.systems/) for project commands.
 
 ```
 just lint
 just format
+just test
 ```
-
-TBD: tests
 
 # License
 
