@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.scripts]
-iim-active = "iim.iim_active:iim_active"
+iim-data = "iim.iim_data:iim_data"
 iim-gdocs-to-jira = "iim.iim_gdocs_to_jira:iim_google_docs_to_jira"
 iim-weekly-overview = "iim.iim_weekly_overview:iim_weekly_report"
 iim-gdoc-download = "iim.iim_gdoc_download:iim_gdoc_download"
