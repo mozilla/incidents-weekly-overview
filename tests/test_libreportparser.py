@@ -4,6 +4,7 @@
 
 from pathlib import Path
 
+import marko
 import pytest
 
 from iim.libreportparser import (
@@ -12,6 +13,7 @@ from iim.libreportparser import (
     extract_jira_key,
     extract_jira_url,
     extract_timestamp,
+    is_table,
     metadata_table_to_report,
     parse_markdown,
 )
@@ -133,7 +135,9 @@ SAMPLE_TABLE = """\
 
 
 def test_metadata_table_to_report_happy():
-    report = metadata_table_to_report(SAMPLE_TABLE)
+    ast = marko.Markdown().parse(SAMPLE_TABLE)
+    table_token = next(t for t in ast.children if is_table(t))
+    report = metadata_table_to_report(table_token)
     assert report.key == "IIM-99"
     assert report.jira_url == "https://jira.example.com/browse/IIM-99"
     assert report.severity == "S2"
@@ -142,3 +146,37 @@ def test_metadata_table_to_report_happy():
     assert report.impact_start == "2026-01-01 10:00"
     assert report.mitigated == "2026-01-01 11:00"
     assert report.resolved == "2026-01-01 12:00"
+
+
+SAMPLE_TABLE_2 = r"""\
+
+| Incident Severity | *Consider the business impact as you set this Severity. Refer to [this guide](https://confluence.example.net/wiki/spaces/MIR/pages/20512894/Incident+Severity+Levels). If the priority of your incident changes during its lifecycle, please capture this in the Timeline section and one of the written sections. Include rationale for why you assigned this severity level.* S2 \- High |
+| :---- | :---- |
+| **Incident Title** | Some Incident |
+| **Jira Ticket/Bug Number** | [https://jira.example.net/browse/BFF-122](https://jira.example.net/browse/BFF-122) [IIM-1000](https://jira.example.net/browse/IIM-1000)  |
+| **Time of first Impact** | *This is the time the impact first started.* 2026-03-02 |
+| **Time Detected** | *Our automation detected a deviation from normal service health.* 2026-03-02 07:50  |
+| **Time Alerted** | *Yardstick\<\>Slack alert integration sent its first alert* 2026-03-02 07:50  |
+| **Time Acknowledged** | *The first page was ACK'd, or in some other way a responding engineer acknowledged the incident.* 2026-03-03 18:18 |
+| **Time Responded/Engaged** | *First moment the problem was being engaged (i.e. reading errors, graphs, etc to begin understanding what was wrong / why the alert even triggered)* 2026-03-03 18:18 |
+| **Time Mitigated (Repaired)** | *SES sending privileges were restored and emails beginning to be reprocessed.* 2026-03-05 00:13 |
+| **Time Resolved** | *All unprocessed emails were sent* 2026-03-06 01:02 |
+| **Issue detected via** | **Automated Alert** |
+| **Video Call Link** |  |
+| **Slack Channel** | #incident-20260302-some-incident |
+| **Current Status** | **Resolved** |
+"""
+
+
+def test_metadata_table_multiple_issues():
+    ast = marko.Markdown().parse(SAMPLE_TABLE_2)
+    table_token = next(t for t in ast.children if is_table(t))
+    report = metadata_table_to_report(table_token)
+    assert report.key == "IIM-1000"
+    assert report.jira_url == "https://jira.example.net/browse/IIM-1000"
+    assert report.severity == "S2"
+    assert report.status == "Resolved"
+    assert report.detection_method == "Automation"
+    assert report.impact_start == "2026-03-02 00:00"
+    assert report.mitigated == "2026-03-05 00:13"
+    assert report.resolved == "2026-03-06 01:02"
