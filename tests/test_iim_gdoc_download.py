@@ -324,7 +324,9 @@ def test_cli_api_404(runner, client_secret_file, tmp_path):
             ],
         )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 0
+    assert "Unable to download incident report." in result.output
+    assert list(tmp_path.glob("*.md")) == []
 
 
 # --- output directory ---

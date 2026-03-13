@@ -9,6 +9,7 @@ Convert incident reports (as markdown) to field data and push to Jira.
 import copy
 import os
 import re
+import traceback
 from typing import Dict
 
 import click
@@ -31,12 +32,16 @@ DATETIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
 JIRA_ISSUE_RE = re.compile(r"(IIM\-\d+)")
 
 
+class NoJiraKeyError(Exception):
+    pass
+
+
 def extract_jira_issue(value):
     """Extract Jira issue key"""
     match = JIRA_ISSUE_RE.search(value)
     if match:
         return match[0]
-    raise Exception(f"{value!r} has no jira issue key")
+    raise NoJiraKeyError(f"{value!r} has no jira issue key")
 
 
 def extract_timestamp(value):
@@ -409,7 +414,19 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
 
             click.echo(f"Parsing {fn}...")
 
-            new_data = md_to_dict(md_data)
+            try:
+                new_data = md_to_dict(md_data)
+            except (KeyError, IndexError):
+                traceback.print_exc()
+                click.echo("Error parsing document.")
+                click.echo("Next?")
+                user_input = input()
+                continue
+            except NoJiraKeyError:
+                traceback.print_exc()
+                click.echo("This incident report doesn't have the Jira IIM key.")
+                click.echo("Next?")
+                user_input = input()
 
             incident_key = new_data["key"]
 

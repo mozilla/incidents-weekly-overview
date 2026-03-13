@@ -9,6 +9,7 @@ Download a Google Doc as a markdown file.
 import io
 import os
 import re
+import traceback
 
 import click
 from google.auth.transport.requests import Request
@@ -102,11 +103,17 @@ def iim_gdoc_download(client_secret_file, output_dir, gdoc_urls):
         except ValueError as e:
             raise click.BadParameter(str(e), param_hint="GDOC_URLS")
 
-        meta = (
-            service.files()
-            .get(fileId=doc_id, fields="name", supportsAllDrives=True)
-            .execute()
-        )
+        try:
+            meta = (
+                service.files()
+                .get(fileId=doc_id, fields="name", supportsAllDrives=True)
+                .execute()
+            )
+        except Exception:
+            traceback.print_exc()
+            click.echo("Unable to download incident report.")
+            continue
+
         os.makedirs(output_dir, exist_ok=True)
         output = os.path.join(output_dir, title_to_filename(meta["name"]))
 
