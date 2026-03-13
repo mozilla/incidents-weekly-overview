@@ -48,7 +48,7 @@ def extract_doc(incident: dict):
     return "no doc"
 
 
-def fix_incident_data(jira_url, incident):
+def fix_jira_incident_data(jira_url, incident):
     return {
         "key": incident["key"],
         "jira_url": f"{jira_url}/browse/{incident['key']}",
@@ -147,3 +147,126 @@ def get_all_issues_for_project(
             break
 
     return issues
+
+
+def get_issue_data(
+    jira_base_url: str,
+    username: str,
+    password: str,
+    issue_key: str,
+) -> dict:
+    """
+    Fetches data for the Jira incident issue specified by incident_key.
+    """
+
+    auth = HTTPBasicAuth(username, password)
+    headers = {"Accept": "application/json"}
+
+    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}"
+
+    response = requests.get(
+        url,
+        auth=auth,
+        headers=headers,
+        timeout=30,
+    )
+
+    # Raise an exception for 4xx/5xx responses
+    response.raise_for_status()
+
+    return response.json()
+
+
+def update_jira_issue_status(
+    jira_base_url: str,
+    username: str,
+    password: str,
+    issue_key: str,
+    new_status: str,
+):
+    """
+    Update a Jira issue's status by transitioning it.
+
+    :raises requests.HTTPError: if the request fails
+    """
+    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}/transitions"
+
+    auth = HTTPBasicAuth(username, password)
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+    # Step 1: Get available transitions
+    response = requests.get(
+        url,
+        headers=headers,
+        auth=auth,
+        timeout=30,
+    )
+
+    if response.status_code not in (200, 204):
+        response.raise_for_status()
+
+    transitions = response.json().get("transitions", [])
+
+    # Step 2: Find matching transition by status name
+    transition_id = None
+    for transition in transitions:
+        if transition["to"]["name"].lower() == new_status.lower():
+            transition_id = transition["id"]
+            break
+
+    if not transition_id:
+        available = [t["to"]["name"] for t in transitions]
+        raise ValueError(
+            f"Status '{new_status}' is not a valid transition for {issue_key}. "
+            f"Available transitions: {available}"
+        )
+
+    # Step 3: Perform transition
+    payload = {"transition": {"id": transition_id}}
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=payload,
+        auth=auth,
+        timeout=30,
+    )
+
+    if response.status_code not in (200, 204):
+        response.raise_for_status()
+
+
+def update_jira_issue_data(
+    jira_base_url: str,
+    username: str,
+    password: str,
+    issue_key: str,
+    updated_fields: dict,
+) -> None:
+    """
+    Update a Jira issue with new field data.
+
+    :raises requests.HTTPError: if the request fails
+    """
+    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}"
+
+    auth = HTTPBasicAuth(username, password)
+    headers = {"Accept": "application/json"}
+    payload = {
+        "fields": updated_fields,
+    }
+
+    response = requests.put(
+        url,
+        auth=auth,
+        headers=headers,
+        json=payload,
+        timeout=30,
+    )
+
+    # Jira returns 204 No Content on success
+    if response.status_code not in (200, 204):
+        response.raise_for_status()

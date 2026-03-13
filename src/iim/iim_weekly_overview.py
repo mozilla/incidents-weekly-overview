@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from iim.libjira import (
-    fix_incident_data,
+    fix_jira_incident_data,
     generate_jira_link,
     get_all_issues_for_project,
 )
@@ -82,7 +82,8 @@ def iim_weekly_report(ctx):
     )
 
     incidents = [
-        fix_incident_data(jira_url=url, incident=incident) for incident in issue_data
+        fix_jira_incident_data(jira_url=url, incident=incident)
+        for incident in issue_data
     ]
 
     # Calculate incident outage time
