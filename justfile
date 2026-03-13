@@ -12,3 +12,9 @@ format:
 
 typecheck:
     uv run ty check src/iim/
+
+check:
+    uv run ruff format --check src/ tests/
+    just lint
+    just test
+    just typecheck
