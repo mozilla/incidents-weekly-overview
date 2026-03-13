@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 import rich
 
 from iim.libjira import (
-    fix_incident_data,
+    fix_jira_incident_data,
     get_all_issues_for_project,
 )
 
@@ -59,7 +59,8 @@ def iim_data(ctx, active, details):
     )
 
     incidents = [
-        fix_incident_data(jira_url=url, incident=incident) for incident in issue_data
+        fix_jira_incident_data(jira_url=url, incident=incident)
+        for incident in issue_data
     ]
 
     def print_incident(incident, details):

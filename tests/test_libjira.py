@@ -12,7 +12,7 @@ import requests
 from iim.libjira import (
     convert_datestamp,
     extract_doc,
-    fix_incident_data,
+    fix_jira_incident_data,
     generate_jira_link,
     get_all_issues_for_project,
     get_arrow_time_or_none,
@@ -99,7 +99,7 @@ def test_extract_doc_non_matching_url():
 
 
 # ---------------------------------------------------------------------------
-# fix_incident_data
+# fix_jira_incident_data
 # ---------------------------------------------------------------------------
 
 JIRA_URL = "https://jira.example.com"
@@ -145,9 +145,9 @@ def _full_incident(gdoc_url):
     }
 
 
-def test_fix_incident_data_happy():
+def test_fix_jira_incident_data_happy():
     incident = _full_incident(gdoc_url=GDOC_URL)
-    result = fix_incident_data(jira_url=JIRA_URL, incident=incident)
+    result = fix_jira_incident_data(jira_url=JIRA_URL, incident=incident)
 
     assert result["key"] == "IIM-42"
     assert result["jira_url"] == f"{JIRA_URL}/browse/IIM-42"
@@ -159,7 +159,7 @@ def test_fix_incident_data_happy():
     assert result["declare date"] == "2025-02-01T10:00:00.000+0000"
 
 
-def test_fix_incident_data_missing_optional_fields():
+def test_fix_jira_incident_data_missing_optional_fields():
     incident = {
         "key": "IIM-7",
         "fields": {
@@ -168,7 +168,7 @@ def test_fix_incident_data_missing_optional_fields():
             "description": {},
         },
     }
-    result = fix_incident_data(jira_url=JIRA_URL, incident=incident)
+    result = fix_jira_incident_data(jira_url=JIRA_URL, incident=incident)
 
     assert result["severity"] == "undetermined"
     assert result["entities"] == ["unknown"]
