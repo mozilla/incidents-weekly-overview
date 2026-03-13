@@ -221,15 +221,15 @@
           <td>
             <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span><br>
             <span class="key">Entities:</span>
-            {% for entity in item['entities'] %}
+            {% for entity in item.entities.split(',') %}
                <span class="entity">{{ entity }}</span>
             {% endfor %}
             &mdash;
-            <span class="key">TT-DEC:</span> {{ item['tt-dec'] }}
+            <span class="key">TT-DEC:</span> {{ item.tt_dec }}
             &mdash;
-            <span class="key">TT-DET:</span> {{ item['tt-det'] }}
+            <span class="key">TT-DET:</span> {{ item.tt_det }}
             &mdash;
-            <span class="key">TT-MIT:</span> {{ item['tt-mit'] }}
+            <span class="key">TT-MIT:</span> {{ item.tt_mit }}
           </td>
         </tr>
       {% endfor %}
@@ -260,15 +260,15 @@
           <td>
             <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span><br>
             <span class="key">Entities:</span>
-            {% for entity in item['entities'] %}
+            {% for entity in item.entities.split(',') %}
                <span class="entity">{{ entity }}</span>
             {% endfor %}
             &mdash;
-            <span class="key">TT-DEC:</span> {{ item['tt-dec'] }}
+            <span class="key">TT-DEC:</span> {{ item.tt_dec }}
             &mdash;
-            <span class="key">TT-DET:</span> {{ item['tt-det'] }}
+            <span class="key">TT-DET:</span> {{ item.tt_det }}
             &mdash;
-            <span class="key">TT-MIT:</span> {{ item['tt-mit'] }}
+            <span class="key">TT-MIT:</span> {{ item.tt_mit }}
           </td>
         </tr>
       {% endfor %}

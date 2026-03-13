@@ -2,27 +2,43 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import copy
 import re
 
 import marko
+import marko.block
+import marko.inline
+
+from iim.libreport import IncidentReport
 
 
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 DATETIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
 JIRA_ISSUE_RE = re.compile(r"(IIM\-\d+)")
+JIRA_URL_RE = re.compile(r"\[IIM-\d+\]\((https?://[^)]+)\)")
+PLAIN_URL_RE = re.compile(r"(https?://\S+/browse/IIM-\d+)")
+
+
+class NoJiraURLError(Exception):
+    pass
 
 
 class NoJiraKeyError(Exception):
     pass
 
 
-def extract_jira_issue(value):
-    """Extract Jira issue key"""
-    match = JIRA_ISSUE_RE.search(value)
-    if match:
-        return match[0]
-    raise NoJiraKeyError(f"{value!r} has no jira issue key")
+def extract_jira_url(value):
+    """Extract Jira URL from markdown link or plain URL"""
+    url_match = JIRA_URL_RE.search(value) or PLAIN_URL_RE.search(value)
+    if url_match:
+        return url_match[1]
+    raise NoJiraURLError(f"{value!r} has no jira url")
+
+
+def extract_jira_key(url):
+    key_match = JIRA_ISSUE_RE.search(url)
+    if key_match:
+        return key_match[0]
+    raise NoJiraKeyError(f"{url!r} has no jira issue key")
 
 
 def extract_timestamp(value):
@@ -45,35 +61,16 @@ METADATA_LABEL_TO_FIELD = {
     "incident title": "summary",
     "incident severity": "severity",
     "jira ticket/bug number": "issues",
-    "issue detected via": "detection method",
+    "issue detected via": "detection_method",
     "current status": "status",
     "time declared": "declared",
-    "time of first impact": "impact start",
+    "time of first impact": "impact_start",
     "time detected": "detected",
     "time alerted": "alerted",
     "time acknowledged": "acknowledged",
     "time responded/engaged": "responded",
     "time mitigated (repaired)": "mitigated",
     "time resolved": "resolved",
-}
-
-
-DEFAULT_DATA = {
-    "key": None,
-    "summary": None,
-    "severity": None,
-    "detection method": None,
-    "status": None,
-    "declare date": None,
-    # timestamps in UTC in YYYY-MM-DD HH:MM format
-    "impact start": None,
-    "declared": None,
-    "detected": None,
-    "alerted": None,
-    "acknowledged": None,
-    "responded": None,
-    "mitigated": None,
-    "resolved": None,
 }
 
 
@@ -119,46 +116,7 @@ def get_text(token):
     return "".join(text)
 
 
-def parse_markdown(md):
-    data = copy.deepcopy(DEFAULT_DATA)
-
-    metadata_table = None
-    action_items_table = None
-
-    ast = marko.Markdown().parse(md)
-    tokens = ast.children
-    while tokens:
-        token = tokens.pop(0)
-        if is_header(token):
-            header_text = get_text(token)
-            if header_text.startswith("Incident: "):
-                data["summary"] = header_text.strip()[10:]
-                while tokens:
-                    token = tokens.pop(0)
-                    if is_table(token):
-                        metadata_table = token
-                        break
-
-            if header_text.startswith("Postmortem Action Items"):
-                while tokens:
-                    token = tokens.pop(0)
-                    if is_table(token):
-                        action_items_table = token  # noqa: F841
-                        break
-
-    # Parse metadata table and update data
-    #
-    # NOTE(willkg): the AST from the Markdown has this as a stream of tokens,
-    # so we convert that back into the Markdown text and then re-tokenize it
-    # because it's easier to deal with that way even if it is a bit silly
-    metadata_table_text = get_text(metadata_table)
-    data.update(metadata_table_to_dict(metadata_table_text))
-
-    # FIXME(willkg): parse action_items_table and update data
-    return data
-
-
-def metadata_table_to_dict(md):
+def metadata_table_to_report(md):
     # Convert Markdown text table to Python dict
     md_table = {}
     for line in md.splitlines():
@@ -177,55 +135,95 @@ def metadata_table_to_dict(md):
 
         md_table[field] = value
 
-    data = {}
+    report = IncidentReport()
 
     # Jira issue key
-    data["key"] = extract_jira_issue(md_table["issues"])
+    report.jira_url = extract_jira_url(md_table["issues"])
+    report.key = extract_jira_key(report.jira_url)
 
     # Status
     status = md_table["status"].strip()
     # incident report has "please select", "ongoing", "mitigated", "resolved"
     # Jira incident has "detected", "in progress", "mitigated", "resolved"
     if status.lower().startswith("mitigated"):
-        data["status"] = "Mitigated"
+        report.status = "Mitigated"
     elif status.lower().startswith("resolved"):
-        data["status"] = "Resolved"
+        report.status = "Resolved"
     else:
-        data["status"] = "In Progress"
+        report.status = "In Progress"
 
     # Severity fields.customfield_10319
     if "S1 - Critical" in md_table["severity"]:
-        data["severity"] = {"value": "S1"}
+        report.severity = "S1"
     elif "S2 - High" in md_table["severity"]:
-        data["severity"] = {"value": "S2"}
+        report.severity = "S2"
     elif "S3 - Medium" in md_table["severity"]:
-        data["severity"] = {"value": "S3"}
+        report.severity = "S3"
     elif "S4 - Low" in md_table["severity"]:
-        data["severity"] = {"value": "S4"}
+        report.severity = "S4"
     else:
-        data["severity"] = None
+        report.severity = None
 
     # Update detection method
-    if "Manual/Human" in md_table["detection method"]:
-        data["detection method"] = {"value": "Manual"}
-    elif "Automated Alert" in md_table["detection method"]:
-        data["detection method"] = {"value": "Automation"}
+    if "Manual/Human" in md_table["detection_method"]:
+        report.detection_method = "Manual"
+    elif "Automated Alert" in md_table["detection_method"]:
+        report.detection_method = "Automation"
     else:
-        data["detection method"] = None
+        report.detection_method = None
 
     # TODO: update services
 
-    data["impact start"] = extract_timestamp(md_table["impact start"])
-    data["declared"] = extract_timestamp(md_table.get("declared"))
-    data["detected"] = extract_timestamp(md_table["detected"])
-    data["alerted"] = extract_timestamp(md_table["alerted"])
-    data["acknowledged"] = extract_timestamp(md_table["acknowledged"])
-    data["responded"] = extract_timestamp(md_table["responded"])
-    data["mitigated"] = extract_timestamp(md_table["mitigated"])
-    data["resolved"] = extract_timestamp(md_table["resolved"])
+    report.impact_start = extract_timestamp(md_table["impact_start"])
+    report.declared = extract_timestamp(md_table.get("declared"))
+    report.detected = extract_timestamp(md_table["detected"])
+    report.alerted = extract_timestamp(md_table["alerted"])
+    report.acknowledged = extract_timestamp(md_table["acknowledged"])
+    report.responded = extract_timestamp(md_table["responded"])
+    report.mitigated = extract_timestamp(md_table["mitigated"])
+    report.resolved = extract_timestamp(md_table["resolved"])
 
     # declare date isn't in the table--we derive it from declared
-    if data["declared"]:
-        data["declare date"] = data["declared"].split("T")[0]
+    if report.declared:
+        report.declare_date = report.declared.split("T")[0]
 
-    return data
+    return report
+
+
+def parse_markdown(md):
+    summary = None
+    metadata_table = None
+    action_items_table = None
+
+    ast = marko.Markdown().parse(md)
+    tokens = list(ast.children)
+    while tokens:
+        token = tokens.pop(0)
+        if is_header(token):
+            header_text = get_text(token)
+            if header_text.startswith("Incident: "):
+                summary = header_text.strip()[10:]
+                while tokens:
+                    token = tokens.pop(0)
+                    if is_table(token):
+                        metadata_table = token
+                        break
+
+            if header_text.startswith("Postmortem Action Items"):
+                while tokens:
+                    token = tokens.pop(0)
+                    if is_table(token):
+                        action_items_table = token  # noqa: F841
+                        break
+
+    # Parse metadata table and update report
+    #
+    # NOTE(willkg): the AST from the Markdown has this as a stream of tokens,
+    # so we convert that back into the Markdown text and then re-tokenize it
+    # because it's easier to deal with that way even if it is a bit silly
+    metadata_table_text = get_text(metadata_table)
+    report = metadata_table_to_report(metadata_table_text)
+    report.summary = summary
+
+    # FIXME(willkg): parse action_items_table and update report
+    return report

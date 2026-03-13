@@ -2,16 +2,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from typing import Optional, Union
+from typing import Any, Optional, Union
 import urllib
+import urllib.parse
 
 import arrow
 from glom import glom
 import requests
 from requests.auth import HTTPBasicAuth
 
+from iim.libreport import IncidentReport
 
-def convert_datestamp(datestamp):
+
+def convert_datestamp(datestamp: str) -> str:
     """Drop the timezone and convert to google sheets friendly datestamp.
 
     2025-01-31T15:06:00.000-0500 -> 2025-01-31 15:06:00
@@ -23,11 +26,9 @@ def convert_datestamp(datestamp):
     return datestamp[0:10] + " " + datestamp[11:19]
 
 
-def extract_doc(incident: dict):
+def extract_doc(description: Any) -> str:
     def is_doc(url):
         return url and url.startswith("https://docs.google.com/document")
-
-    description = glom(incident, "fields.description", default={})
 
     # Do a depth-first search with the assumption that the first doc listed is
     # the incident report
@@ -48,35 +49,54 @@ def extract_doc(incident: dict):
     return "no doc"
 
 
-def fix_jira_incident_data(jira_url, incident):
-    return {
-        "key": incident["key"],
-        "jira_url": f"{jira_url}/browse/{incident['key']}",
-        "status": incident["fields"]["status"]["name"],
-        "summary": incident["fields"]["summary"],
-        "severity": glom(
+INCIDENT_REPORT_TO_JIRA_FIELD = {
+    "status": "status.name",
+    "summary": "summary",
+    "severity": "customfield_10319.value",
+    "entities": "customfield_18555",
+    "declare_date": "customfield_15087",
+    "detection_method": "customfield_12881.value",
+    "impact_start": "customfield_18693",
+    "declared": "customfield_18692",
+    "detected": "customfield_18694",
+    "alerted": "customfield_18695",
+    "acknowledged": "customfield_18696",
+    "responded": "customfield_18697",
+    "mitigated": "customfield_18698",
+    "resolved": "customfield_18699",
+}
+
+
+def incident_report_to_jira_field(field):
+    return INCIDENT_REPORT_TO_JIRA_FIELD.get(field)
+
+
+def fix_jira_incident_data(jira_url: str, incident: dict) -> IncidentReport:
+    return IncidentReport(
+        key=incident["key"],
+        jira_url=f"{jira_url}/browse/{incident['key']}",
+        status=incident["fields"]["status"]["name"],
+        summary=incident["fields"]["summary"],
+        description=incident["fields"]["description"],
+        severity=glom(
             incident, "fields.customfield_10319.value", default="undetermined"
         ),
-        "entities": glom(incident, "fields.customfield_18555", default="unknown").split(
-            ","
-        ),
-        "report_url": extract_doc(incident),
-        "declare date": glom(incident, "fields.customfield_15087", default=None),
-        "detection method": glom(
-            incident, "fields.customfield_12881.value", default=None
-        ),
-        "impact start": glom(incident, "fields.customfield_18693", default=None),
-        "declared": glom(incident, "fields.customfield_18692", default=None),
-        "detected": glom(incident, "fields.customfield_18694", default=None),
-        "alerted": glom(incident, "fields.customfield_18695", default=None),
-        "acknowledged": glom(incident, "fields.customfield_18696", default=None),
-        "responded": glom(incident, "fields.customfield_18697", default=None),
-        "mitigated": glom(incident, "fields.customfield_18698", default=None),
-        "resolved": glom(incident, "fields.customfield_18699", default=None),
-    }
+        entities=glom(incident, "fields.customfield_18555", default="unknown"),
+        report_url=extract_doc(incident["fields"]["description"]),
+        declare_date=glom(incident, "fields.customfield_15087", default=None),
+        detection_method=glom(incident, "fields.customfield_12881.value", default=None),
+        impact_start=glom(incident, "fields.customfield_18693", default=None),
+        declared=glom(incident, "fields.customfield_18692", default=None),
+        detected=glom(incident, "fields.customfield_18694", default=None),
+        alerted=glom(incident, "fields.customfield_18695", default=None),
+        acknowledged=glom(incident, "fields.customfield_18696", default=None),
+        responded=glom(incident, "fields.customfield_18697", default=None),
+        mitigated=glom(incident, "fields.customfield_18698", default=None),
+        resolved=glom(incident, "fields.customfield_18699", default=None),
+    )
 
 
-def get_arrow_time_or_none(incident, field, fieldname):
+def get_arrow_time_or_none(incident: dict, field: str, fieldname: str) -> arrow.Arrow:
     value = glom(incident, f"fields.{field}", default="")
     if value:
         value = arrow.get(value)
@@ -84,7 +104,7 @@ def get_arrow_time_or_none(incident, field, fieldname):
     return value
 
 
-def generate_jira_link(jira_url, incident_keys):
+def generate_jira_link(jira_url: str, incident_keys: list[str]):
     base = f"{jira_url}/jira/software/c/projects/IIM/issues?"
     keys = ",".join(incident_keys)
     params = {"jql": f"project = IIM AND issuetype = Incident AND key in ({keys})"}
@@ -154,7 +174,7 @@ def get_issue_data(
     username: str,
     password: str,
     issue_key: str,
-) -> dict:
+) -> IncidentReport:
     """
     Fetches data for the Jira incident issue specified by incident_key.
     """
@@ -174,7 +194,8 @@ def get_issue_data(
     # Raise an exception for 4xx/5xx responses
     response.raise_for_status()
 
-    return response.json()
+    data = response.json()
+    return fix_jira_incident_data(jira_url=jira_base_url, incident=data)
 
 
 def update_jira_issue_status(

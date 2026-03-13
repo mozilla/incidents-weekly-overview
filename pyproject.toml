@@ -34,4 +34,5 @@ dev = [
     "pytest",
     "responses",
     "ruff",
+    "ty",
 ]

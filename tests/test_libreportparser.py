@@ -7,9 +7,12 @@ from pathlib import Path
 import pytest
 
 from iim.libreportparser import (
-    extract_jira_issue,
+    NoJiraKeyError,
+    NoJiraURLError,
+    extract_jira_key,
+    extract_jira_url,
     extract_timestamp,
-    metadata_table_to_dict,
+    metadata_table_to_report,
     parse_markdown,
 )
 
@@ -18,24 +21,41 @@ REPORTS_DIR = Path(__file__).parent / "data"
 
 
 # ---------------------------------------------------------------------------
-# extract_jira_issue
+# extract_jira_url
 # ---------------------------------------------------------------------------
 
 
-def test_extract_jira_issue_link():
+def test_extract_jira_url_markdown_link():
     assert (
-        extract_jira_issue("[IIM-131](https://jira.example.com/browse/IIM-131)")
-        == "IIM-131"
+        extract_jira_url("[IIM-131](https://jira.example.com/browse/IIM-131)")
+        == "https://jira.example.com/browse/IIM-131"
     )
 
 
-def test_extract_jira_issue_bare_key():
-    assert extract_jira_issue("IIM-42") == "IIM-42"
+def test_extract_jira_url_plain_url():
+    assert (
+        extract_jira_url("https://mozilla-hub.atlassian.net/browse/IIM-95")
+        == "https://mozilla-hub.atlassian.net/browse/IIM-95"
+    )
 
 
-def test_extract_jira_issue_no_key():
-    with pytest.raises(Exception):
-        extract_jira_issue("no jira issue here")
+def test_extract_jira_url_no_url():
+    with pytest.raises(NoJiraURLError):
+        extract_jira_url("no jira url here")
+
+
+# ---------------------------------------------------------------------------
+# extract_jira_key
+# ---------------------------------------------------------------------------
+
+
+def test_extract_jira_key_from_url():
+    assert extract_jira_key("https://jira.example.com/browse/IIM-131") == "IIM-131"
+
+
+def test_extract_jira_key_no_key():
+    with pytest.raises(NoJiraKeyError):
+        extract_jira_key("https://example.com/no/key/here")
 
 
 # ---------------------------------------------------------------------------
@@ -71,26 +91,28 @@ def test_extract_timestamp(text, expected):
 def test_parse_markdown_service_alpha():
     service_alpha_md = (REPORTS_DIR / "incident_service_alpha_v20250520.md").read_text()
     data = parse_markdown(service_alpha_md)
-    assert data["key"] == "IIM-131"
-    assert data["severity"] == {"value": "S2"}
-    assert data["detection method"] == {"value": "Manual"}
-    assert data["status"] == "Mitigated"
-    assert data["impact start"] is not None
-    assert data["detected"] is not None
-    assert data["mitigated"] is not None
+    assert data.key == "IIM-131"
+    assert data.jira_url == "https://example.com/browse/IIM-131"
+    assert data.severity == "S2"
+    assert data.detection_method == "Manual"
+    assert data.status == "Mitigated"
+    assert data.impact_start is not None
+    assert data.detected is not None
+    assert data.mitigated is not None
 
 
 def test_parse_markdown_bravoservice():
     bravoservice_md = (REPORTS_DIR / "incident_bravoservice_v20250520.md").read_text()
     data = parse_markdown(bravoservice_md)
-    assert data["key"] == "IIM-133"
-    assert data["severity"] == {"value": "S3"}
-    assert data["detection method"] == {"value": "Automation"}
-    assert data["status"] == "Mitigated"
+    assert data.key == "IIM-133"
+    assert data.jira_url == "https://example.com/browse/IIM-133"
+    assert data.severity == "S3"
+    assert data.detection_method == "Automation"
+    assert data.status == "Mitigated"
 
 
 # ---------------------------------------------------------------------------
-# metadata_table_to_dict
+# metadata_table_to_report
 # ---------------------------------------------------------------------------
 
 
@@ -111,12 +133,13 @@ SAMPLE_TABLE = """\
 """
 
 
-def test_metadata_table_to_dict_happy():
-    data = metadata_table_to_dict(SAMPLE_TABLE)
-    assert data["key"] == "IIM-99"
-    assert data["severity"] == {"value": "S2"}
-    assert data["status"] == "Mitigated"
-    assert data["detection method"] == {"value": "Manual"}
-    assert data["impact start"] == "2026-01-01 10:00"
-    assert data["mitigated"] == "2026-01-01 11:00"
-    assert data["resolved"] == "2026-01-01 12:00"
+def test_metadata_table_to_report_happy():
+    report = metadata_table_to_report(SAMPLE_TABLE)
+    assert report.key == "IIM-99"
+    assert report.jira_url == "https://jira.example.com/browse/IIM-99"
+    assert report.severity == "S2"
+    assert report.status == "Mitigated"
+    assert report.detection_method == "Manual"
+    assert report.impact_start == "2026-01-01 10:00"
+    assert report.mitigated == "2026-01-01 11:00"
+    assert report.resolved == "2026-01-01 12:00"

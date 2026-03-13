@@ -65,12 +65,10 @@ def iim_data(ctx, active, details):
 
     def print_incident(incident, details):
         if details:
-            rich.print(
-                f"{incident['key']}  {incident['summary']}  ({incident['entities']})"
-            )
-            rich.print(incident["resolved"])
-            rich.print(incident["jira_url"])
-        rich.print(incident["report_url"])
+            rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
+            rich.print(incident.resolved)
+            rich.print(incident.jira_url)
+        rich.print(incident.report_url)
         if details:
             click.echo()
 
@@ -84,12 +82,12 @@ def iim_data(ctx, active, details):
         resolved_incidents = [
             item
             for item in incidents
-            if item["resolved"] and item["resolved"] > two_weeks_ago
+            if item.resolved and item.resolved > two_weeks_ago
         ]
         header = f"Recently resolved incidents ({len(resolved_incidents)}):"
         groups[header] = resolved_incidents
 
-        active_incidents = [item for item in incidents if item["status"] != "Resolved"]
+        active_incidents = [item for item in incidents if item.status != "Resolved"]
         header = f"Active incidents ({len(active_incidents)}):"
         groups[header] = active_incidents
 
