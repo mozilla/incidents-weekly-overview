@@ -7,7 +7,7 @@ import requests
 import responses as responses_lib
 
 from iim.libjira import (
-    get_issue_data,
+    get_issue_report,
     update_jira_issue_data,
     update_jira_issue_status,
 )
@@ -19,12 +19,12 @@ PASSWORD = "pass"
 
 
 # ---------------------------------------------------------------------------
-# get_issue_data
+# get_issue_report
 # ---------------------------------------------------------------------------
 
 
 @responses_lib.activate
-def test_get_issue_data_happy():
+def test_get_issue_report_happy():
     issue_data = {
         "key": "IIM-131",
         "fields": {
@@ -40,14 +40,14 @@ def test_get_issue_data_happy():
         status=200,
     )
 
-    result = get_issue_data(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
+    result = get_issue_report(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
     assert result.key == "IIM-131"
     assert result.status == "Mitigated"
     assert result.summary == "Test incident"
 
 
 @responses_lib.activate
-def test_get_issue_data_401():
+def test_get_issue_report_401():
     responses_lib.add(
         responses_lib.GET,
         f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131",
@@ -56,7 +56,7 @@ def test_get_issue_data_401():
     )
 
     with pytest.raises(requests.HTTPError):
-        get_issue_data(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
+        get_issue_report(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
 
 
 # ---------------------------------------------------------------------------

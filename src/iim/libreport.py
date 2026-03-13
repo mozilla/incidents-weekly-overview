@@ -7,6 +7,13 @@ from typing import Any, Optional
 
 
 @dataclass
+class ActionItem:
+    url: Optional[str] = None
+    status: Optional[str] = None
+    title: Optional[str] = None
+
+
+@dataclass
 class IncidentReport:
     key: Optional[str] = None
     jira_url: Optional[str] = None
@@ -34,3 +41,8 @@ class IncidentReport:
     tt_dec: Optional[str] = None
     tt_alert: Optional[str] = None
     tt_mit: Optional[str] = None
+    action_items: Optional[list[ActionItem]] = None
+
+    @property
+    def tracked_action_items(self):
+        return [item for item in self.action_items or [] if item.url]
