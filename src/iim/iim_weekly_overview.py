@@ -94,30 +94,34 @@ def iim_weekly_report(ctx):
             "tt-det": "?",
             "tt-mit": "?",
         }
-        start_ts = incident["impact start"] or incident["detected"]
+        start_ts = incident.impact_start or incident.detected
         if not start_ts:
-            incident.update(timings)
+            incident.tt_dec = timings["tt-dec"]
+            incident.tt_det = timings["tt-det"]
+            incident.tt_mit = timings["tt-mit"]
             continue
 
         # NOTE: We don't have good declared data prior to September 15th, 2025,
         # so don't calculate it if before that date.
-        if incident["declared"] and incident["declared"] > "2025-09-15":
-            end_ts = arrow.get(incident["declared"])
+        if incident.declared and incident.declared > "2025-09-15":
+            end_ts = arrow.get(incident.declared)
             timings["tt-dec"] = humanize_timedelta(end_ts - arrow.get(start_ts))
 
-        if incident["detected"]:
-            end_ts = arrow.get(incident["detected"])
+        if incident.detected:
+            end_ts = arrow.get(incident.detected)
             timings["tt-det"] = humanize_timedelta(end_ts - arrow.get(start_ts))
 
-        if incident["mitigated"]:
-            end_ts = arrow.get(incident["mitigated"])
+        if incident.mitigated:
+            end_ts = arrow.get(incident.mitigated)
             timings["tt-mit"] = humanize_timedelta(end_ts - arrow.get(start_ts))
         else:
             timings["tt-mit"] = (
                 humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
             )
 
-        incident.update(timings)
+        incident.tt_dec = timings["tt-dec"]
+        incident.tt_det = timings["tt-det"]
+        incident.tt_mit = timings["tt-mit"]
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     last_friday = (
@@ -130,19 +134,18 @@ def iim_weekly_report(ctx):
         incident
         for incident in incidents
         if (
-            incident["declare date"][0:11] >= last_friday
-            and incident["declare date"][0:11] <= this_friday
+            incident.declare_date is not None
+            and incident.declare_date[0:11] >= last_friday
+            and incident.declare_date[0:11] <= this_friday
         )
     ]
 
     severity_breakdown = {}
     for item in new_incidents:
-        severity_breakdown[item["severity"]] = (
-            severity_breakdown.get(item["severity"], 0) + 1
-        )
+        severity_breakdown[item.severity] = severity_breakdown.get(item.severity, 0) + 1
 
     active_incidents = [
-        incident for incident in incidents if incident["status"] != "Resolved"
+        incident for incident in incidents if incident.status != "Resolved"
     ]
 
     env = Environment(
@@ -162,12 +165,12 @@ def iim_weekly_report(ctx):
         new_incidents=new_incidents,
         new_incidents_link=generate_jira_link(
             jira_url=url,
-            incident_keys=[item["key"] for item in new_incidents],
+            incident_keys=[item.key for item in new_incidents if item.key],
         ),
         active_incidents=active_incidents,
         active_incidents_link=generate_jira_link(
             jira_url=url,
-            incident_keys=[item["key"] for item in active_incidents],
+            incident_keys=[item.key for item in active_incidents if item.key],
         ),
     )
     inliner = css_inline.CSSInliner()

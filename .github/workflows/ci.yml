@@ -26,5 +26,8 @@ jobs:
       - name: Format
         run: uv run ruff format --check src/ tests/
 
+      - name: Typecheck
+        run: uv run ty check src/iim/
+
       - name: Test
         run: uv run pytest tests/ -v

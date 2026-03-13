@@ -44,58 +44,47 @@ GDOC_URL = "https://docs.google.com/document/d/abc123/edit"
 NON_GDOC_URL = "https://example.com/document"
 
 
-def _incident_with_description(description):
-    return {"fields": {"description": description}}
-
-
 def test_extract_doc_inline_card():
-    incident = _incident_with_description(
-        {
-            "content": [
-                {
-                    "type": "inlineCard",
-                    "attrs": {"url": GDOC_URL},
-                }
-            ]
-        }
-    )
-    assert extract_doc(incident) == GDOC_URL
+    description = {
+        "content": [
+            {
+                "type": "inlineCard",
+                "attrs": {"url": GDOC_URL},
+            }
+        ]
+    }
+    assert extract_doc(description) == GDOC_URL
 
 
 def test_extract_doc_text_mark():
-    incident = _incident_with_description(
-        {
-            "content": [
-                {
-                    "type": "text",
-                    "text": "Incident report",
-                    "marks": [
-                        {"type": "link", "attrs": {"href": GDOC_URL}},
-                    ],
-                }
-            ]
-        }
-    )
-    assert extract_doc(incident) == GDOC_URL
+    description = {
+        "content": [
+            {
+                "type": "text",
+                "text": "Incident report",
+                "marks": [
+                    {"type": "link", "attrs": {"href": GDOC_URL}},
+                ],
+            }
+        ]
+    }
+    assert extract_doc(description) == GDOC_URL
 
 
 def test_extract_doc_no_description():
-    incident = {"fields": {}}
-    assert extract_doc(incident) == "no doc"
+    assert extract_doc({}) == "no doc"
 
 
 def test_extract_doc_non_matching_url():
-    incident = _incident_with_description(
-        {
-            "content": [
-                {
-                    "type": "inlineCard",
-                    "attrs": {"url": NON_GDOC_URL},
-                }
-            ]
-        }
-    )
-    assert extract_doc(incident) == "no doc"
+    description = {
+        "content": [
+            {
+                "type": "inlineCard",
+                "attrs": {"url": NON_GDOC_URL},
+            }
+        ]
+    }
+    assert extract_doc(description) == "no doc"
 
 
 # ---------------------------------------------------------------------------
@@ -149,14 +138,14 @@ def test_fix_jira_incident_data_happy():
     incident = _full_incident(gdoc_url=GDOC_URL)
     result = fix_jira_incident_data(jira_url=JIRA_URL, incident=incident)
 
-    assert result["key"] == "IIM-42"
-    assert result["jira_url"] == f"{JIRA_URL}/browse/IIM-42"
-    assert result["status"] == "Closed"
-    assert result["summary"] == "Everything is on fire"
-    assert result["severity"] == "S1"
-    assert result["entities"] == ["payments", "auth"]
-    assert result["report_url"] == GDOC_URL
-    assert result["declare date"] == "2025-02-01T10:00:00.000+0000"
+    assert result.key == "IIM-42"
+    assert result.jira_url == f"{JIRA_URL}/browse/IIM-42"
+    assert result.status == "Closed"
+    assert result.summary == "Everything is on fire"
+    assert result.severity == "S1"
+    assert result.entities == "payments,auth"
+    assert result.report_url == GDOC_URL
+    assert result.declare_date == "2025-02-01T10:00:00.000+0000"
 
 
 def test_fix_jira_incident_data_missing_optional_fields():
@@ -170,8 +159,8 @@ def test_fix_jira_incident_data_missing_optional_fields():
     }
     result = fix_jira_incident_data(jira_url=JIRA_URL, incident=incident)
 
-    assert result["severity"] == "undetermined"
-    assert result["entities"] == ["unknown"]
+    assert result.severity == "undetermined"
+    assert result.entities == "unknown"
 
 
 # ---------------------------------------------------------------------------

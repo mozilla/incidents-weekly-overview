@@ -16,12 +16,13 @@ import rich
 from rich.table import Table
 
 from iim.libjira import (
-    extract_doc,
     get_issue_data,
+    incident_report_to_jira_field,
     update_jira_issue_data,
     update_jira_issue_status,
 )
-from iim.libreportparser import NoJiraKeyError, parse_markdown
+from iim.libreport import IncidentReport
+from iim.libreportparser import NoJiraURLError, NoJiraKeyError, parse_markdown
 
 
 load_dotenv()
@@ -69,70 +70,76 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             click.echo(f"Parsing {fn}...")
 
             try:
-                new_data = parse_markdown(md_data)
+                markdown_report: IncidentReport = parse_markdown(md_data)
             except (KeyError, IndexError):
                 traceback.print_exc()
                 click.echo("Error parsing document.")
                 click.echo("Next?")
                 user_input = input()
                 continue
-            except NoJiraKeyError:
+            except (NoJiraKeyError, NoJiraURLError):
                 traceback.print_exc()
                 click.echo("This incident report doesn't have the Jira IIM key.")
                 click.echo("Next?")
                 user_input = input()
 
-            incident_key = new_data["key"]
-
-            incident = get_issue_data(
+            jira_incident: IncidentReport = get_issue_data(
                 jira_base_url=url,
                 username=username,
                 password=password,
-                issue_key=incident_key,
+                issue_key=markdown_report.key,
             )
 
             updated_fields = {}
 
             # Update summary
-            updated_fields["summary"] = new_data["summary"]
-            if incident["fields"]["customfield_15087"]:
-                updated_fields["summary"] = (
-                    updated_fields["summary"]
-                    + f" ({incident['fields']['customfield_15087']})"
-                )
-            updated_fields["summary"] = updated_fields["summary"].strip()
-            updated_fields["customfield_10319"] = new_data["severity"]
-            updated_fields["customfield_12881"] = new_data["detection method"]
-            updated_fields["customfield_18693"] = new_data["impact start"]
-            updated_fields["customfield_18694"] = new_data["detected"]
-            updated_fields["customfield_18695"] = new_data["alerted"]
-            updated_fields["customfield_18696"] = new_data["acknowledged"]
-            updated_fields["customfield_18697"] = new_data["responded"]
-            updated_fields["customfield_18698"] = new_data["mitigated"]
-            updated_fields["customfield_18699"] = new_data["resolved"]
+            # NOTE(willkg): before 20260312, the source for declare date was
+            # the jira incident issue. after that, we pull it from the incident
+            # report field
+            summary = markdown_report.summary
+            declare_date = markdown_report.declare_date or jira_incident.declare_date
+            if declare_date:
+                summary = f"{summary} ({declare_date})"
+            updated_fields["summary"] = summary.strip()
 
-            # Don't update these if the update is to set them to None
-            if new_data["declare date"]:
-                updated_fields["customfield_15087"] = new_data["declare date"]
+            # NOTE(willkg): if the update is to set this field to None, then set it
+            # to whatever Jira has already
+            updated_fields["customfield_15087"] = (
+                markdown_report.declare_date or jira_incident.declare_date
+            )
+            updated_fields["customfield_18692"] = (
+                markdown_report.declared or jira_incident.declared
+            )
+
+            # These are options, so we have to set the value value
+            if markdown_report.severity:
+                updated_fields["customfield_10319"] = {
+                    "value": markdown_report.severity
+                }
             else:
-                updated_fields["customfield_15087"] = glom(
-                    incident, "fields.customfield_15087"
-                )
-            if new_data["declared"]:
-                updated_fields["customfield_18692"] = new_data["declared"]
+                updated_fields["customfield_10319"] = None
+            if markdown_report.detection_method:
+                updated_fields["customfield_12881"] = {
+                    "value": markdown_report.detection_method
+                }
             else:
-                updated_fields["customfield_18692"] = glom(
-                    incident, "fields.customfield_18692"
-                )
+                updated_fields["customfield_12881"] = None
+            # These are more straightforward
+            updated_fields["customfield_18693"] = markdown_report.impact_start
+            updated_fields["customfield_18694"] = markdown_report.detected
+            updated_fields["customfield_18695"] = markdown_report.alerted
+            updated_fields["customfield_18696"] = markdown_report.acknowledged
+            updated_fields["customfield_18697"] = markdown_report.responded
+            updated_fields["customfield_18698"] = markdown_report.mitigated
+            updated_fields["customfield_18699"] = markdown_report.resolved
 
             # TODO: Update services
             # TODO: Update post-mortem actions -- not in metadata
 
             click.echo()
             click.echo("Data to update:")
-            click.echo(f"Jira:{url}/browse/{incident['key']}")
-            click.echo(f"Incident Report: {extract_doc(incident)}")
-            click.echo("Status: " + incident["fields"]["status"]["name"])
+            click.echo(f"Jira: {markdown_report.jira_url}")
+            click.echo(f"Incident Report: {jira_incident.report_url}")
 
             changes = False
 
@@ -141,35 +148,34 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             table.add_column("current")
             table.add_column("new")
 
-            table.add_row(
-                "status",
-                incident["fields"]["status"]["name"],
-                new_data["status"],
-            )
+            # NOTE(willkg): status gets updated separately, but we want to show
+            # it in the table, so we do this
+            current_value = jira_incident.status
+            new_value = markdown_report.status
+            if current_value != new_value:
+                current_value = f"[yellow]{current_value}[/yellow]"
+                new_value = f"[yellow]{new_value}[/yellow]"
+                changes = True
+                table.add_row("status", current_value, new_value)
 
             for name, field in (
                 ("summary", "summary"),
-                ("severity", "customfield_10319"),
-                ("detection method", "customfield_12881"),
-                ("declare date", "customfield_15087"),
-                ("impact start (ts)", "customfield_18693"),
-                ("time declared (ts)", "customfield_18692"),
-                ("time detected (ts)", "customfield_18694"),
-                ("time alerted (ts)", "customfield_18695"),
-                ("time acknowledged (ts)", "customfield_18696"),
-                ("time responded (ts)", "customfield_18697"),
-                ("time mitigated (ts)", "customfield_18698"),
-                ("time resolved (ts)", "customfield_18699"),
+                ("severity", "severity"),
+                ("detection method", "detection_method"),
+                ("declare date", "declare_date"),
+                ("impact start (ts)", "impact_start"),
+                ("time declared (ts)", "declared"),
+                ("time detected (ts)", "detected"),
+                ("time alerted (ts)", "alerted"),
+                ("time acknowledged (ts)", "acknowledged"),
+                ("time responded (ts)", "responded"),
+                ("time mitigated (ts)", "mitigated"),
+                ("time resolved (ts)", "resolved"),
             ):
-                if name in ("severity", "detection method"):
-                    current_value = {
-                        "value": glom(incident, f"fields.{field}.value", default=None)
-                    }
-                else:
-                    current_value = incident["fields"][field]
-
-                current_value = str(current_value)
-                new_value = str(updated_fields[field])
+                current_value = str(getattr(jira_incident, field))
+                new_value = str(
+                    glom(updated_fields, incident_report_to_jira_field(field))
+                )
 
                 if current_value != new_value:
                     current_value = f"[yellow]{current_value}[/yellow]"
@@ -197,19 +203,19 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
                     continue
 
                 click.echo("Committing to Jira ...")
-                if incident["fields"]["status"]["name"] != new_data["status"]:
+                if jira_incident.status != markdown_report.status:
                     update_jira_issue_status(
                         jira_base_url=url,
                         username=username,
                         password=password,
-                        issue_key=incident_key,
-                        new_status=new_data["status"],
+                        issue_key=markdown_report.key,
+                        new_status=markdown_report.status,
                     )
                 update_jira_issue_data(
                     jira_base_url=url,
                     username=username,
                     password=password,
-                    issue_key=incident_key,
+                    issue_key=markdown_report.key,
                     updated_fields=updated_fields,
                 )
 

@@ -9,3 +9,6 @@ lint:
 
 format:
     uv run ruff format src/ tests/
+
+typecheck:
+    uv run ty check src/iim/

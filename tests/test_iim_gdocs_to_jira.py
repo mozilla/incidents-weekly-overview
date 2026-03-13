@@ -25,7 +25,14 @@ PASSWORD = "pass"
 
 @responses_lib.activate
 def test_get_issue_data_happy():
-    issue_data = {"key": "IIM-131", "fields": {"status": {"name": "Mitigated"}}}
+    issue_data = {
+        "key": "IIM-131",
+        "fields": {
+            "status": {"name": "Mitigated"},
+            "summary": "Test incident",
+            "description": {},
+        },
+    }
     responses_lib.add(
         responses_lib.GET,
         f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131",
@@ -34,7 +41,9 @@ def test_get_issue_data_happy():
     )
 
     result = get_issue_data(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
-    assert result == issue_data
+    assert result.key == "IIM-131"
+    assert result.status == "Mitigated"
+    assert result.summary == "Test incident"
 
 
 @responses_lib.activate
