@@ -32,5 +32,5 @@ class IncidentReport:
     resolved: Optional[str] = None
     # computed timing fields populated by iim_weekly_overview
     tt_dec: Optional[str] = None
-    tt_det: Optional[str] = None
+    tt_alert: Optional[str] = None
     tt_mit: Optional[str] = None

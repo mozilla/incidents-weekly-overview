@@ -97,7 +97,6 @@ def test_parse_markdown_service_alpha():
     assert data.detection_method == "Manual"
     assert data.status == "Mitigated"
     assert data.impact_start is not None
-    assert data.detected is not None
     assert data.mitigated is not None
 
 

@@ -65,7 +65,6 @@ METADATA_LABEL_TO_FIELD = {
     "current status": "status",
     "time declared": "declared",
     "time of first impact": "impact_start",
-    "time detected": "detected",
     "time alerted": "alerted",
     "time acknowledged": "acknowledged",
     "time responded/engaged": "responded",
@@ -176,7 +175,6 @@ def metadata_table_to_report(md):
 
     report.impact_start = extract_timestamp(md_table["impact_start"])
     report.declared = extract_timestamp(md_table.get("declared"))
-    report.detected = extract_timestamp(md_table["detected"])
     report.alerted = extract_timestamp(md_table["alerted"])
     report.acknowledged = extract_timestamp(md_table["acknowledged"])
     report.responded = extract_timestamp(md_table["responded"])
