@@ -91,25 +91,28 @@ def iim_weekly_report(ctx):
     for incident in incidents:
         timings = {
             "tt-dec": "?",
-            "tt-det": "?",
+            "tt-alert": "?",
             "tt-mit": "?",
         }
         start_ts = incident.impact_start or incident.detected
         if not start_ts:
             incident.tt_dec = timings["tt-dec"]
-            incident.tt_det = timings["tt-det"]
+            incident.tt_alert = timings["tt-alert"]
             incident.tt_mit = timings["tt-mit"]
             continue
 
-        # NOTE: We don't have good declared data prior to September 15th, 2025,
-        # so don't calculate it if before that date.
+        # NOTE(willkg): We don't have good declared data prior to September
+        # 15th, 2025, so don't calculate it if before that date.
         if incident.declared and incident.declared > "2025-09-15":
             end_ts = arrow.get(incident.declared)
             timings["tt-dec"] = humanize_timedelta(end_ts - arrow.get(start_ts))
 
-        if incident.detected:
-            end_ts = arrow.get(incident.detected)
-            timings["tt-det"] = humanize_timedelta(end_ts - arrow.get(start_ts))
+        # NOTE(willkg): Older incidents had "detected" data and may not
+        # have had "alerted" data.
+        alerted = incident.alerted or incident.detected
+        if alerted:
+            end_ts = arrow.get(alerted)
+            timings["tt-alert"] = humanize_timedelta(end_ts - arrow.get(start_ts))
 
         if incident.mitigated:
             end_ts = arrow.get(incident.mitigated)
@@ -120,7 +123,7 @@ def iim_weekly_report(ctx):
             )
 
         incident.tt_dec = timings["tt-dec"]
-        incident.tt_det = timings["tt-det"]
+        incident.tt_alert = timings["tt-alert"]
         incident.tt_mit = timings["tt-mit"]
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
