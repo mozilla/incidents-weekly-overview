@@ -8,6 +8,7 @@ Convert incident reports (as markdown) to field data and push to Jira.
 
 import os
 import traceback
+from typing import Optional
 
 import click
 from dotenv import load_dotenv
@@ -16,7 +17,7 @@ import rich
 from rich.table import Table
 
 from iim.libjira import (
-    get_issue_data,
+    get_issue_report,
     incident_report_to_jira_field,
     update_jira_issue_data,
     update_jira_issue_status,
@@ -26,6 +27,17 @@ from iim.libreportparser import NoJiraURLError, NoJiraKeyError, parse_markdown
 
 
 load_dotenv()
+
+
+def shorten_issue(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return url
+    # Shorten Jira urls
+    if "browse" in url:
+        return url.split("/")[-1] + " (Jira)"
+    # TODO(willkg): shorten GitHub urls
+    # TODO(willkg): shorten Bugzilla urls
+    return url
 
 
 @click.command()
@@ -83,7 +95,7 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
                 click.echo("Next?")
                 user_input = input()
 
-            jira_incident: IncidentReport = get_issue_data(
+            jira_incident: IncidentReport = get_issue_report(
                 jira_base_url=url,
                 username=username,
                 password=password,
@@ -156,7 +168,7 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
                 current_value = f"[yellow]{current_value}[/yellow]"
                 new_value = f"[yellow]{new_value}[/yellow]"
                 changes = True
-                table.add_row("status", current_value, new_value)
+            table.add_row("status", current_value, new_value)
 
             for name, field in (
                 ("summary", "summary"),
@@ -182,7 +194,42 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
                     changes = True
                 table.add_row(name, current_value, new_value)
 
+            current_action_items = set(
+                [item.url for item in jira_incident.action_items or [] if item.url]
+            )
+            new_action_items = set(
+                [item.url for item in markdown_report.action_items or [] if item.url]
+            )
+            all_action_items = current_action_items.union(new_action_items)
+
+            for item in all_action_items:
+                current_value = (
+                    shorten_issue(item) if item in current_action_items else None
+                )
+                new_value = shorten_issue(item) if item in new_action_items else None
+                if current_value != new_value:
+                    current_value = f"[yellow]{current_value}[/yellow]"
+                    new_value = f"[yellow]{new_value}[/yellow]"
+                    changes = True
+
+                table.add_row(
+                    "action item",
+                    current_value,
+                    new_value,
+                )
+
             rich.print(table)
+
+            # In incident report, but not in issue tracker
+            click.echo("Action items to add:")
+            action_items_to_remove = current_action_items - new_action_items
+            rich.print(action_items_to_remove)
+
+            # In issue tracker, but not in incident report
+            click.echo("Action items to remove:")
+            action_items_to_add = new_action_items - current_action_items
+            rich.print(action_items_to_add)
+
             click.echo()
 
             if not changes:

@@ -7,6 +7,7 @@ from pathlib import Path
 import marko
 import pytest
 
+from iim.libreport import IncidentReport
 from iim.libreportparser import (
     NoJiraKeyError,
     NoJiraURLError,
@@ -135,9 +136,10 @@ SAMPLE_TABLE = """\
 
 
 def test_metadata_table_to_report_happy():
+    report = IncidentReport()
     ast = marko.Markdown().parse(SAMPLE_TABLE)
     table_token = next(t for t in ast.children if is_table(t))
-    report = metadata_table_to_report(table_token)
+    report = metadata_table_to_report(report, table_token)
     assert report.key == "IIM-99"
     assert report.jira_url == "https://jira.example.com/browse/IIM-99"
     assert report.severity == "S2"
@@ -169,9 +171,10 @@ SAMPLE_TABLE_2 = r"""\
 
 
 def test_metadata_table_multiple_issues():
+    report = IncidentReport()
     ast = marko.Markdown().parse(SAMPLE_TABLE_2)
     table_token = next(t for t in ast.children if is_table(t))
-    report = metadata_table_to_report(table_token)
+    report = metadata_table_to_report(report, table_token)
     assert report.key == "IIM-1000"
     assert report.jira_url == "https://jira.example.net/browse/IIM-1000"
     assert report.severity == "S2"

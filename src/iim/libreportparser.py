@@ -8,7 +8,7 @@ import marko
 import marko.block
 import marko.inline
 
-from iim.libreport import IncidentReport
+from iim.libreport import ActionItem, IncidentReport
 
 
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -184,8 +184,8 @@ def _cell_link_dests(cell_items):
             yield from _cell_link_dests(item.children)
 
 
-def metadata_table_to_report(table_token):
-    """Parse a table-like Paragraph token into an IncidentReport."""
+def metadata_table_to_report(report: IncidentReport, table_token):
+    """Parse a table-like Paragraph token and update IncidentReport report."""
     md_table = {}
     for row_items in _table_to_rows(table_token):
         cells = _row_to_cells(row_items)
@@ -216,8 +216,6 @@ def metadata_table_to_report(table_token):
         else:
             md_table[field] = _cell_text(value_cell)
 
-    report = IncidentReport()
-
     # Jira URL and key
     report.jira_url = extract_jira_url(md_table.get("issues", ""))
     report.key = extract_jira_key(report.jira_url)
@@ -228,7 +226,7 @@ def metadata_table_to_report(table_token):
     status = md_table.get("status", "").strip()
     if status.lower().startswith("mitigated"):
         report.status = "Mitigated"
-    elif status.lower().startswith("resolved"):
+    elif status.lower().startswith(("resolved", "done")):
         report.status = "Resolved"
     else:
         report.status = "In Progress"
@@ -272,8 +270,73 @@ def metadata_table_to_report(table_token):
     return report
 
 
+def _extract_action_item_status(cell_items):
+    """Extract status string from action item ticket cell.
+
+    Handles formats like:
+      [MNTOR-5235](url) Status: Done
+      [[MZCLD-806](url)] **Done**
+      **In Progress**
+      Status: Not started
+    """
+    cell_text = _cell_text(cell_items)
+
+    # Explicit "Status: X" pattern
+    if "Status:" in cell_text:
+        return cell_text.split("Status:", 1)[1].strip()
+
+    # Collect non-link text (handles bold status like **Done**)
+    parts = []
+    for item in cell_items:
+        if isinstance(item, str):
+            parts.append(item)
+        elif isinstance(item, (marko.inline.RawText, marko.inline.Literal)):
+            parts.append(item.children)
+        elif isinstance(item, marko.inline.Link):
+            pass  # skip link content
+        elif hasattr(item, "children") and isinstance(item.children, list):
+            parts.append(_cell_text(item.children))
+
+    non_link_text = re.sub(r"[\[\]\s]+", " ", "".join(parts)).strip()
+    return non_link_text or None
+
+
+def action_items_table_to_report(report: IncidentReport, table_token):
+    """Parse action items table token and update IncidentReport report."""
+    if table_token is None:
+        return
+
+    report.action_items = []
+    for row_items in _table_to_rows(table_token):
+        cells = _row_to_cells(row_items)
+        if len(cells) < 3:
+            continue
+
+        ticket_cell = cells[1]
+        title_cell = cells[2]
+
+        title = _cell_text(title_cell).strip()
+        ticket_text = _cell_text(ticket_cell).strip()
+
+        # Skip header and separator rows
+        if not title and not ticket_text:
+            continue
+        if re.match(r"^[\s:\-]+$", ticket_text):
+            continue
+        if "jira ticket" in ticket_text.lower() or "ticket title" in title.lower():
+            continue
+
+        url = next(_cell_link_dests(ticket_cell), None)
+        # This is an example url from the template--skip this row
+        if url == "https://mozilla-hub.atlassian.net/browse/":
+            continue
+        status = _extract_action_item_status(ticket_cell)
+
+        report.action_items.append(ActionItem(url=url, status=status, title=title))
+
+
 def parse_markdown(md):
-    summary = None
+    report = IncidentReport()
     metadata_table = None
     action_items_table = None
 
@@ -284,7 +347,7 @@ def parse_markdown(md):
         if is_header(token):
             header_text = get_text(token)
             if header_text.startswith("Incident: "):
-                summary = header_text.strip()[10:]
+                report.summary = header_text.strip()[10:]
                 while tokens:
                     token = tokens.pop(0)
                     if is_table(token):
@@ -295,12 +358,13 @@ def parse_markdown(md):
                 while tokens:
                     token = tokens.pop(0)
                     if is_table(token):
-                        action_items_table = token  # noqa: F841
+                        action_items_table = token
                         break
 
     # Parse metadata table and update report
-    report = metadata_table_to_report(metadata_table)
-    report.summary = summary
+    metadata_table_to_report(report, metadata_table)
 
-    # FIXME(willkg): parse action_items_table and update report
+    # Parse action item table and update report
+    action_items_table_to_report(report, action_items_table)
+
     return report

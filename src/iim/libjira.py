@@ -11,7 +11,7 @@ from glom import glom
 import requests
 from requests.auth import HTTPBasicAuth
 
-from iim.libreport import IncidentReport
+from iim.libreport import ActionItem, IncidentReport
 
 
 def convert_datestamp(datestamp: str) -> str:
@@ -72,6 +72,22 @@ def incident_report_to_jira_field(field):
 
 
 def fix_jira_incident_data(jira_url: str, incident: dict) -> IncidentReport:
+    action_items = []
+
+    # Add "has action item" issue links
+    issuelinks = glom(incident, "fields.issuelinks", default=[]) or []
+    action_items.extend(
+        [
+            ActionItem(
+                url=f"{jira_url}/browse/{item['outwardIssue']['key']}",
+                status=item["outwardIssue"]["fields"]["status"]["name"],
+                title=item["outwardIssue"]["fields"]["summary"],
+            )
+            for item in issuelinks
+            if item["type"]["name"] == "Action item" and "outwardIssue" in item
+        ]
+    )
+
     return IncidentReport(
         key=incident["key"],
         jira_url=f"{jira_url}/browse/{incident['key']}",
@@ -93,6 +109,7 @@ def fix_jira_incident_data(jira_url: str, incident: dict) -> IncidentReport:
         responded=glom(incident, "fields.customfield_18697", default=None),
         mitigated=glom(incident, "fields.customfield_18698", default=None),
         resolved=glom(incident, "fields.customfield_18699", default=None),
+        action_items=action_items,
     )
 
 
@@ -169,14 +186,14 @@ def get_all_issues_for_project(
     return issues
 
 
-def get_issue_data(
+def get_issue(
     jira_base_url: str,
     username: str,
     password: str,
     issue_key: str,
-) -> IncidentReport:
+) -> dict:
     """
-    Fetches data for the Jira incident issue specified by incident_key.
+    Requests Jira incident issue data.
     """
 
     auth = HTTPBasicAuth(username, password)
@@ -194,7 +211,25 @@ def get_issue_data(
     # Raise an exception for 4xx/5xx responses
     response.raise_for_status()
 
-    data = response.json()
+    return response.json()
+
+
+def get_issue_report(
+    jira_base_url: str,
+    username: str,
+    password: str,
+    issue_key: str,
+) -> IncidentReport:
+    """
+    Fetches data for the Jira incident issue specified by incident_key.
+    """
+    data = get_issue(
+        jira_base_url=jira_base_url,
+        username=username,
+        password=password,
+        issue_key=issue_key,
+    )
+
     return fix_jira_incident_data(jira_url=jira_base_url, incident=data)
 
 
