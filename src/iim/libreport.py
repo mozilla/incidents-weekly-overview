@@ -10,7 +10,7 @@ from typing import Any, Optional
 JIRA_KEY_RE = re.compile(r"https?://[^\s/]+/browse/([A-Z][A-Z0-9]+-\d+)")
 
 
-def jira_key(url: str) -> Optional[str]:
+def jira_key(url: Optional[str]) -> Optional[str]:
     if not url:
         return None
     match = JIRA_KEY_RE.match(url)
@@ -27,7 +27,7 @@ GITHUB_PR_ID_RE = re.compile(
 )
 
 
-def github_id(url: str) -> Optional[str]:
+def github_id(url: Optional[str]) -> Optional[str]:
     if not url:
         return None
     match = GITHUB_ISSUE_ID_RE.match(url)
@@ -42,7 +42,7 @@ def github_id(url: str) -> Optional[str]:
 BUGZILLA_ID_RE = re.compile(r"https?://[^\s/]+/show_bug\.cgi\?id=(\d+)")
 
 
-def bugzilla_id(url: Optional[str]) -> bool:
+def bugzilla_id(url: Optional[str]) -> Optional[str]:
     if not url:
         return None
     match = BUGZILLA_ID_RE.match(url)
@@ -71,9 +71,9 @@ class ActionItem:
             return "github"
         return None
 
-    @classmethod
+    @staticmethod
     def is_changed(
-        cls, old_data: Optional["ActionItem"], new_data: Optional["ActionItem"]
+        old_data: Optional["ActionItem"], new_data: Optional["ActionItem"]
     ) -> bool:
         if old_data is None or new_data is None:
             return True
