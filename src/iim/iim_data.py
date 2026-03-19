@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 import rich
 
 from iim.libjira import (
+    JiraAPI,
     fix_jira_incident_data,
-    get_all_issues_for_project,
 )
 
 
@@ -47,19 +47,16 @@ def iim_data(ctx, active, details):
     * JIRA_TOKEN
     * JIRA_URL
     """
-    username = os.environ["JIRA_USERNAME"].strip()
-    password = os.environ["JIRA_TOKEN"].strip()
-    url = os.environ["JIRA_URL"].strip().rstrip("/")
-
-    issue_data = get_all_issues_for_project(
-        jira_base_url=url,
-        project_key="IIM",
-        username=username,
-        password=password,
+    jira = JiraAPI(
+        base_url=os.environ["JIRA_URL"].strip(),
+        username=os.environ["JIRA_USERNAME"].strip(),
+        password=os.environ["JIRA_TOKEN"].strip(),
     )
 
+    issue_data = jira.get_all_issues_for_project(project_key="IIM")
+
     incidents = [
-        fix_jira_incident_data(jira_url=url, incident=incident)
+        fix_jira_incident_data(jira_url=jira.base_url, incident=incident)
         for incident in issue_data
     ]
 

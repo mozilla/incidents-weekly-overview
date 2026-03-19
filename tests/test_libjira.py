@@ -14,7 +14,6 @@ from iim.libjira import (
     extract_doc,
     fix_jira_incident_data,
     generate_jira_link,
-    get_all_issues_for_project,
     get_arrow_time_or_none,
 )
 
@@ -204,14 +203,14 @@ def test_generate_jira_link():
 
 
 # ---------------------------------------------------------------------------
-# get_all_issues_for_project
+# JiraAPI.get_all_issues_for_project
 # ---------------------------------------------------------------------------
 
 API_URL = "https://jira.example.com/rest/api/3/search/jql"
 
 
 @responses_lib.activate
-def test_get_all_issues_single_page():
+def test_get_all_issues_single_page(jira_client):
     issue = {"key": "IIM-1", "fields": {}}
     responses_lib.add(
         responses_lib.GET,
@@ -220,13 +219,13 @@ def test_get_all_issues_single_page():
         status=200,
     )
 
-    result = get_all_issues_for_project(JIRA_URL, "IIM", "user", "pass")
+    result = jira_client.get_all_issues_for_project("IIM")
     assert result == [issue]
     assert len(responses_lib.calls) == 1
 
 
 @responses_lib.activate
-def test_get_all_issues_paginated():
+def test_get_all_issues_paginated(jira_client):
     issue1 = {"key": "IIM-1", "fields": {}}
     issue2 = {"key": "IIM-2", "fields": {}}
 
@@ -243,13 +242,13 @@ def test_get_all_issues_paginated():
         status=200,
     )
 
-    result = get_all_issues_for_project(JIRA_URL, "IIM", "user", "pass")
+    result = jira_client.get_all_issues_for_project("IIM")
     assert result == [issue1, issue2]
     assert len(responses_lib.calls) == 2
 
 
 @responses_lib.activate
-def test_get_all_issues_http_error():
+def test_get_all_issues_http_error(jira_client):
     responses_lib.add(
         responses_lib.GET,
         API_URL,
@@ -258,11 +257,11 @@ def test_get_all_issues_http_error():
     )
 
     with pytest.raises(requests.HTTPError):
-        get_all_issues_for_project(JIRA_URL, "IIM", "user", "badpass")
+        jira_client.get_all_issues_for_project("IIM")
 
 
 @responses_lib.activate
-def test_get_all_issues_empty():
+def test_get_all_issues_empty(jira_client):
     responses_lib.add(
         responses_lib.GET,
         API_URL,
@@ -270,5 +269,5 @@ def test_get_all_issues_empty():
         status=200,
     )
 
-    result = get_all_issues_for_project(JIRA_URL, "IIM", "user", "pass")
+    result = jira_client.get_all_issues_for_project("IIM")
     assert result == []

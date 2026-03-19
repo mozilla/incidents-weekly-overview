@@ -16,20 +16,8 @@ from dotenv import load_dotenv
 import rich
 from rich.table import Table
 
-from iim.libjira import (
-    get_issue_report,
-    to_jira_field,
-    update_jira_issue_data,
-    update_jira_issue_status,
-    add_jira_issue_link,
-    add_remote_link,
-    remove_jira_issue_link,
-    remove_remote_link,
-)
-from iim.libreport import (
-    IncidentReport,
-    jira_key,
-)
+from iim.libjira import JiraAPI, to_jira_field
+from iim.libreport import IncidentReport
 from iim.libreportparser import NoJiraIIMURLError, NoJiraIIMKeyError, parse_markdown
 
 
@@ -249,9 +237,11 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
     * JIRA_TOKEN
     * JIRA_URL
     """
-    username = os.environ["JIRA_USERNAME"].strip()
-    password = os.environ["JIRA_TOKEN"].strip()
-    jira_url = os.environ["JIRA_URL"].strip().rstrip("/")
+    jira_client = JiraAPI(
+        base_url=os.environ["JIRA_URL"].strip(),
+        username=os.environ["JIRA_USERNAME"].strip(),
+        password=os.environ["JIRA_TOKEN"].strip(),
+    )
 
     if not docs:
         raise click.BadParameter(
@@ -282,12 +272,8 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             user_input = input()
             continue
 
-        jira_incident: IncidentReport = get_issue_report(
-            jira_base_url=jira_url,
-            username=username,
-            password=password,
-            issue_key=markdown_report.key,
-        )
+        jira_key = markdown_report.key
+        jira_incident: IncidentReport = jira_client.get_issue_report(jira_key)
 
         # Generate an understanding of what changed
         status_diff = generate_status_diff(
@@ -349,80 +335,32 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
 
             # Handle status transition changes
             if status_diff.old_value != status_diff.new_value:
-                update_jira_issue_status(
-                    jira_base_url=jira_url,
-                    username=username,
-                    password=password,
-                    issue_key=markdown_report.key,
-                    new_status=status_diff.new_value,
-                )
+                jira_client.update_issue_status(jira_key, status_diff.new_value)
 
             # Update metadata
             updated_fields = {}
             for item in metadata_diff:
                 updated_fields.update(item.field_value)
-            update_jira_issue_data(
-                jira_base_url=jira_url,
-                username=username,
-                password=password,
-                issue_key=markdown_report.key,
-                updated_fields=updated_fields,
-            )
+            jira_client.update_issue_data(jira_key, updated_fields)
 
             for item in actions_diff:
                 if item.new_value and not item.old_value:
                     # Item needs to be added
                     linked_key = jira_key(item.field_value[1].url)
                     if linked_key:
-                        add_jira_issue_link(
-                            jira_base_url=jira_url,
-                            username=username,
-                            password=password,
-                            incident_key=markdown_report.key,
-                            linked_issue_key=linked_key,
-                        )
+                        jira_client.add_issue_link(jira_key, linked_key)
                     else:
-                        add_remote_link(
-                            jira_base_url=jira_url,
-                            username=username,
-                            password=password,
-                            incident_key=markdown_report.key,
-                            action_item=item.field_value[1],
-                        )
+                        jira_client.add_remote_link(jira_key, item.field_value[1])
                 elif item.old_value and not item.new_value:
                     # Item needs to be removed
                     linked_key = jira_key(item.field_value[0].url)
                     if linked_key:
-                        remove_jira_issue_link(
-                            jira_base_url=jira_url,
-                            username=username,
-                            password=password,
-                            link_id=item.field_value[0].jira_id,
-                        )
+                        jira_client.remove_issue_link(item.field_value[0].jira_id)
                     else:
-                        remove_remote_link(
-                            jira_base_url=jira_url,
-                            username=username,
-                            password=password,
-                            incident_key=markdown_report.key,
-                            action_item=item.field_value[0],
-                        )
+                        jira_client.remove_remote_link(jira_key, item.field_value[0])
                 else:
-                    # Item needs to be updated--old one removed and new one
-                    # added
-                    remove_remote_link(
-                        jira_base_url=jira_url,
-                        username=username,
-                        password=password,
-                        incident_key=markdown_report.key,
-                        action_item=item.field_value[0],
-                    )
-                    add_remote_link(
-                        jira_base_url=jira_url,
-                        username=username,
-                        password=password,
-                        incident_key=markdown_report.key,
-                        action_item=item.field_value[1],
-                    )
+                    # Item needs to be updated--old one removed and new one added
+                    jira_client.remove_remote_link(jira_key, item.field_value[0])
+                    jira_client.add_remote_link(jira_key, item.field_value[1])
 
     click.echo("Done!")
