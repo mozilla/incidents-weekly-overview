@@ -64,6 +64,7 @@ INCIDENT_REPORT_TO_JIRA_FIELD = {
     "responded": "customfield_18697",
     "mitigated": "customfield_18698",
     "resolved": "customfield_18699",
+    "impacted_entities": "customfield_18555",
 }
 
 

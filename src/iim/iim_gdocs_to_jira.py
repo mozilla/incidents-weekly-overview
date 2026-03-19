@@ -104,6 +104,18 @@ def generate_metadata_diff(jira_data, report_data):
             },
         )
     )
+    diff.append(
+        Diff(
+            name="impacted entities",
+            old_value=jira_data.entities,
+            new_value=report_data.entities or jira_data.entities,
+            field_value={
+                to_jira_field("impacted_entities"): (
+                    report_data.entities or jira_data.entities
+                )
+            },
+        )
+    )
 
     # These are options, so we have to set the value value
     diff.append(
@@ -350,6 +362,9 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
 
             for item in actions_diff:
                 assert item.from_to is not None
+                if item.new_value == item.old_value:
+                    continue
+
                 old_item, new_item = item.from_to
                 if item.new_value and not item.old_value:
                     # Item needs to be added

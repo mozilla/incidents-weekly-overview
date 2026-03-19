@@ -13,10 +13,13 @@ from iim.libreportparser import (
     NoJiraIIMURLError,
     ReportParser20250520,
     ReportParser20260312,
+    ReportParserPre20250520,
     extract_jira_key,
     extract_jira_iim_url,
     extract_timestamp,
+    get_text,
     is_table,
+    normalize_entities,
     parse_markdown,
 )
 
@@ -78,6 +81,9 @@ def test_extract_jira_key_no_key():
         ),
         # just the date -- converts to midnight
         ("2026-02-21", "2026-02-21 00:00"),
+        # ISO 8601 format with T separator and Z suffix
+        ("2025-01-27T16:00:00Z UTC", "2025-01-27 16:00"),
+        ("2025-01-27T16:03:00Z", "2025-01-27 16:03"),
         # no dates -- return None
         ("non-date", None),
         (None, None),
@@ -85,6 +91,59 @@ def test_extract_jira_key_no_key():
 )
 def test_extract_timestamp(text, expected):
     assert extract_timestamp(text) == expected
+
+
+# ---------------------------------------------------------------------------
+# get_text
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "md, keep_links, expected",
+    [
+        # plain text — unaffected by keep_links
+        ("just text", True, "just text"),
+        ("just text", False, "just text"),
+        # link with keep_links=True preserves markdown link syntax
+        (
+            "abc [link title](https://example.com/)",
+            True,
+            "abc [link title](https://example.com/)",
+        ),
+        # link with keep_links=False strips URL, keeps visible text
+        ("abc [link title](https://example.com/)", False, "abc link title"),
+        # link with no visible text falls back to "Link"
+        ("[](https://example.com/)", True, "[Link](https://example.com/)"),
+        ("[](https://example.com/)", False, "Link"),
+    ],
+)
+def test_get_text(md, keep_links, expected):
+    ast = marko.Markdown().parse(md)
+    # parse_markdown wraps content in a Document > Paragraph
+    paragraph = ast.children[0]
+    result = get_text(paragraph, keep_links=keep_links)
+    assert result == expected
+
+
+# ---------------------------------------------------------------------------
+# normalize_entities
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (None, None),
+        ("", None),
+        ("   ", None),
+        ("fenix", "fenix"),
+        ("  fxa,  fenix", "fenix, fxa"),
+        ("FXA, Fenix", "fenix, fxa"),
+        ("testreport, incidents", "incidents, testreport"),
+    ],
+)
+def test_normalize_entities(value, expected):
+    assert normalize_entities(value) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +269,7 @@ SAMPLE_TABLE_20260312 = """\
 | **Time Mitigated (Repaired)** *description* YYYY-MM-DD hh:mm | 2026-03-12 06:00 |
 | **Time Resolved** *description* YYYY-MM-DD hh:mm | 2026-03-12 07:00 |
 | **Detection method** | **Automated Alert** |
+| **Impacted entities** *description* | testreport, incidents |
 """
 
 
@@ -231,6 +291,7 @@ def test_metadata_table_to_report_v20260312():
     assert report.responded == "2026-03-12 05:00"
     assert report.mitigated == "2026-03-12 06:00"
     assert report.resolved == "2026-03-12 07:00"
+    assert report.entities == "incidents, testreport"
 
 
 def test_metadata_table_to_report_v20260312_manual_detection():
@@ -312,3 +373,146 @@ Template version 2026.03.12
     assert report.status == "Resolved"
     assert report.detection_method == "Automation"
     assert report.template_version == "2026.03.12"
+
+
+# ---------------------------------------------------------------------------
+# ReportParserPre20250520.metadata_list_to_report
+# ---------------------------------------------------------------------------
+
+
+SAMPLE_LIST_PRE20250520 = """\
+* **Incident Severity**: S2 \\- High
+* **Incident Jira Ticket**: [SREIM-17](https://example.net/browse/SREIM-17) [IIM-50](https://example.net/browse/IIM-50)
+* **Time of first Impact:** 2025-01-27T16:00:00Z UTC
+* **Time Alerted**: 2025-01-27T16:05:00Z UTC
+* **Time Acknowledge**: 2025-01-27T16:05:00Z UTC
+* **Time Responded/Engaged**: 2025-01-27T16:03:00Z UTC
+* **Time Mitigated (Repaired)**: 2025-01-27T16:19:00Z UTC
+* **Time Resolved**: 2025-01-27T16:19:00Z UTC
+* **Current Status**: \\[Resolved\\]
+"""
+
+
+def test_metadata_list_to_report():
+    report = IncidentReport()
+    parser = ReportParserPre20250520()
+    ast = marko.Markdown().parse(SAMPLE_LIST_PRE20250520)
+    list_token = next(t for t in ast.children if isinstance(t, marko.block.List))
+    parser.metadata_list_to_report(report, list_token)
+    assert report.key == "IIM-50"
+    assert report.jira_url == "https://example.net/browse/IIM-50"
+    assert report.severity == "S2"
+    assert report.status == "Resolved"
+    assert report.impact_start == "2025-01-27 16:00"
+    assert report.alerted == "2025-01-27 16:05"
+    assert report.acknowledged == "2025-01-27 16:05"
+    assert report.responded == "2025-01-27 16:03"
+    assert report.mitigated == "2025-01-27 16:19"
+    assert report.resolved == "2025-01-27 16:19"
+
+
+# ---------------------------------------------------------------------------
+# ReportParserPre20250520.action_items_list_to_report
+# ---------------------------------------------------------------------------
+
+
+SAMPLE_ACTION_ITEMS_PRE20250520 = """\
+- [ ] \\[[WORK-1](https://example.net/browse/WORK-1)\\] Do the open thing.
+- [x] ~~\\[[WORK-2](https://example.net/browse/WORK-2)\\] Done thing.~~
+- [ ] \\[Jira TBC\\] No ticket yet.
+"""
+
+
+def test_action_items_list_to_report():
+    report = IncidentReport()
+    parser = ReportParserPre20250520()
+    ast = marko.Markdown().parse(SAMPLE_ACTION_ITEMS_PRE20250520)
+    list_token = next(t for t in ast.children if isinstance(t, marko.block.List))
+    parser.action_items_list_to_report(report, list_token)
+    assert len(report.action_items) == 3
+
+    assert report.action_items[0].url == "https://example.net/browse/WORK-1"
+    assert report.action_items[0].status == "OPEN"
+    assert report.action_items[0].title == "Do the open thing."
+
+    assert report.action_items[1].url == "https://example.net/browse/WORK-2"
+    assert report.action_items[1].status == "DONE"
+    assert report.action_items[1].title == "Done thing."
+
+    assert report.action_items[2].url is None
+    assert report.action_items[2].status == "OPEN"
+    assert report.action_items[2].title == "No ticket yet."
+
+
+# ---------------------------------------------------------------------------
+# parse_markdown - ReportParserPre20250520
+# ---------------------------------------------------------------------------
+
+
+def test_parse_markdown_deltaservice():
+    """Full document parse of a pre-20250520 bullet-list-format incident report."""
+    md = (REPORTS_DIR / "incident_deltaservice_pre_20250520.md").read_text()
+    data = parse_markdown(md)
+    assert data.key == "IIM-17"
+    assert data.jira_url == "https://example.net/browse/IIM-17"
+    assert data.summary == "delta.example.org returning 4xx\u2019s"
+    assert data.severity == "S2"
+    assert data.status == "Resolved"
+    assert data.template_version == "pre-2025.05.20"
+    assert data.impact_start == "2025-01-27 16:00"
+    assert data.alerted == "2025-01-27 16:05"
+    assert data.acknowledged == "2025-01-27 16:05"
+    assert data.responded == "2025-01-27 16:03"
+    assert data.mitigated == "2025-01-27 16:19"
+    assert data.resolved == "2025-01-27 16:19"
+
+
+def test_parse_markdown_deltaservice_action_items():
+    """Action items from pre-20250520 format: correct count, URLs, and statuses."""
+    md = (REPORTS_DIR / "incident_deltaservice_pre_20250520.md").read_text()
+    data = parse_markdown(md)
+    assert data.action_items is not None
+    assert len(data.action_items) == 7
+
+    # First two items have the same Jira ticket
+    assert data.action_items[0].url == "https://example.net/browse/SE-4263"
+    assert data.action_items[0].status == "OPEN"
+    assert data.action_items[1].url == "https://example.net/browse/SE-4263"
+    assert data.action_items[1].status == "OPEN"
+
+    # Third item is completed (strikethrough / [x])
+    assert data.action_items[2].url == "https://example.net/browse/OPST-1874"
+    assert data.action_items[2].status == "DONE"
+
+    # Remaining items have no Jira ticket yet
+    for item in data.action_items[3:]:
+        assert item.url is None
+        assert item.status == "OPEN"
+
+
+def test_parse_markdown_selects_pre20250520_parser():
+    """parse_markdown routes to ReportParserPre20250520 for bullet-list format."""
+    md = """\
+# Incident: *parser selection test*
+
+* **Incident [Severity](https://example.net/wiki/severity)**: S2 \\- High
+* **Incident Jira Ticket**: [IIM-42](https://example.net/browse/IIM-42)
+* **Time of first Impact:** 2025-06-01T10:00:00Z UTC
+* **Time Mitigated (Repaired)**: 2025-06-01T10:30:00Z UTC
+* **Time Resolved**: 2025-06-01T10:30:00Z UTC
+* **Current Status**: \\[Resolved\\]
+
+# Postmortem Action Items
+
+- [ ] \\[Jira TBC\\] Fix the thing.
+"""
+    report = parse_markdown(md)
+    assert report.key == "IIM-42"
+    assert report.severity == "S2"
+    assert report.status == "Resolved"
+    assert report.template_version == "pre-2025.05.20"
+    assert report.impact_start == "2025-06-01 10:00"
+    assert report.mitigated == "2025-06-01 10:30"
+    assert len(report.action_items) == 1
+    assert report.action_items[0].title == "Fix the thing."
+    assert report.action_items[0].status == "OPEN"

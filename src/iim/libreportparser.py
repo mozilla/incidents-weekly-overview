@@ -14,6 +14,7 @@ from iim.libreport import ActionItem, IncidentReport
 
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 DATETIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
+ISO_DATETIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})")
 JIRA_ISSUE_RE = re.compile(r"(IIM\-\d+)")
 JIRA_URL_RE = re.compile(r"(https://\S+?/browse/IIM\-\d+)")
 
@@ -47,6 +48,10 @@ def extract_timestamp(value):
     if value is None:
         return None
 
+    match = ISO_DATETIME_RE.search(value)
+    if match:
+        return f"{match[1]} {match[2]}"
+
     match = DATETIME_RE.search(value)
     if match:
         return match[0]
@@ -75,7 +80,7 @@ def is_table(token):
     )
 
 
-def get_text(token):
+def get_text(token, keep_links: bool = True):
     text = []
     if isinstance(
         token,
@@ -90,11 +95,14 @@ def get_text(token):
     elif isinstance(token, marko.inline.Link):
         link_text = []
         for child in token.children:
-            link_text.extend(get_text(child))
-        text.append(f"[{''.join(link_text) or 'Link'}]({token.dest})")
+            link_text.extend(get_text(child, keep_links=keep_links))
+        if keep_links:
+            text.append(f"[{''.join(link_text) or 'Link'}]({token.dest})")
+        else:
+            text.append("".join(link_text) or "Link")
     else:
         for child in token.children:
-            text.extend(get_text(child))
+            text.extend(get_text(child, keep_links=keep_links))
 
     return "".join(text)
 
@@ -167,6 +175,23 @@ def _cell_link_dests(cell_items):
             yield item.dest
         if hasattr(item, "children") and isinstance(item.children, list):
             yield from _cell_link_dests(item.children)
+
+
+def _recursive_link_dests(token):
+    """Yield all Link dests found recursively in any token (block or inline)."""
+    if isinstance(token, marko.inline.Link):
+        yield token.dest
+    if hasattr(token, "children") and isinstance(token.children, list):
+        for child in token.children:
+            yield from _recursive_link_dests(child)
+
+
+def normalize_entities(value: str | None) -> str | None:
+    """Normalize a comma-separated entities string to sorted, lowercased, ', '-delimited form."""
+    if not value or not value.strip():
+        return None
+    parts = [p.strip().lower() for p in value.split(",") if p.strip()]
+    return ", ".join(sorted(parts))
 
 
 class ReportParser:
@@ -292,7 +317,7 @@ class ReportParser20250520(ReportParser):
 
         # Explicit "Status: X" pattern
         if "Status:" in cell_text:
-            return cell_text.split("Status:", 1)[1].strip()
+            return cell_text.split("Status:", 1)[1].strip().upper()
 
         # Collect non-link text (handles bold status like **Done**)
         parts = []
@@ -306,8 +331,8 @@ class ReportParser20250520(ReportParser):
             elif hasattr(item, "children") and isinstance(item.children, list):
                 parts.append(_cell_text(item.children))
 
-        non_link_text = re.sub(r"[\[\]\s]+", " ", "".join(parts)).strip()
-        return non_link_text or None
+        non_link_text = re.sub(r"[\[\]\s]+", " ", "".join(parts)).strip() or "unknown"
+        return non_link_text.upper()
 
     def action_items_table_to_report(self, report: IncidentReport, table_token):
         """Parse action items table token and update IncidentReport report."""
@@ -352,8 +377,8 @@ class ReportParser20250520(ReportParser):
         while tokens:
             token = tokens.pop(0)
             if is_header(token):
-                header_text = get_text(token)
-                if header_text.startswith("Incident: "):
+                header_text = get_text(token, keep_links=False)
+                if "Incident: " in header_text or "Incident report: " in header_text:
                     report.summary = header_text.strip()[10:]
                     while tokens:
                         token = tokens.pop(0)
@@ -391,7 +416,244 @@ class ReportParser20260312(ReportParser20250520):
         "time responded/engaged": "responded",
         "time mitigated (repaired)": "mitigated",
         "time resolved": "resolved",
+        "impacted entities": "entities",
     }
+
+    def metadata_table_to_report(self, report: IncidentReport, table_token):
+        """Parse a table-like Paragraph token and update IncidentReport report."""
+        md_table = {}
+        for row_items in _table_to_rows(table_token):
+            cells = _row_to_cells(row_items)
+            if len(cells) < 3:
+                continue
+
+            label_text = _cell_text(cells[1]).lower().strip()
+
+            field = None
+            for key, val in self.METADATA_LABEL_TO_FIELD.items():
+                if key in label_text:
+                    field = val
+                    break
+            if field is None:
+                continue
+
+            value_cell = cells[2]
+            if field == "issues":
+                # Cells may have multiple links; find the first IIM URL
+                iim_url = None
+                for dest in _cell_link_dests(value_cell):
+                    try:
+                        iim_url = extract_jira_iim_url(dest)
+                        break
+                    except NoJiraIIMURLError:
+                        continue
+                md_table[field] = iim_url or _cell_text(value_cell).strip()
+            else:
+                md_table[field] = _cell_text(value_cell)
+
+        # Jira URL and key
+        report.jira_url = extract_jira_iim_url(md_table.get("issues", ""))
+        report.key = extract_jira_key(report.jira_url)
+
+        # Status
+        # incident report has "please select", "ongoing", "mitigated", "resolved"
+        # Jira incident has "detected", "in progress", "mitigated", "resolved"
+        status = md_table.get("status", "").strip()
+        if status.lower().startswith("mitigated"):
+            report.status = "Mitigated"
+        elif status.lower().startswith(("resolved", "done")):
+            report.status = "Resolved"
+        else:
+            report.status = "In Progress"
+
+        # Severity
+        severity = md_table.get("severity", "")
+        if "S1 - Critical" in severity:
+            report.severity = "S1"
+        elif "S2 - High" in severity:
+            report.severity = "S2"
+        elif "S3 - Medium" in severity:
+            report.severity = "S3"
+        elif "S4 - Low" in severity:
+            report.severity = "S4"
+        else:
+            report.severity = None
+
+        # Detection method
+        detection_method = md_table.get("detection_method", "")
+        if "Manual/Human" in detection_method:
+            report.detection_method = "Manual"
+        elif "Automated Alert" in detection_method:
+            report.detection_method = "Automation"
+        else:
+            report.detection_method = None
+
+        # Impacted entities
+        report.entities = normalize_entities(md_table.get("entities"))
+
+        report.impact_start = extract_timestamp(md_table.get("impact_start"))
+        report.declared = extract_timestamp(md_table.get("declared"))
+        report.alerted = extract_timestamp(md_table.get("alerted"))
+        report.acknowledged = extract_timestamp(md_table.get("acknowledged"))
+        report.responded = extract_timestamp(md_table.get("responded"))
+        report.mitigated = extract_timestamp(md_table.get("mitigated"))
+        report.resolved = extract_timestamp(md_table.get("resolved"))
+
+        # declare date isn't in the table--we derive it from declared
+        if report.declared:
+            report.declare_date = report.declared.split("T")[0]
+
+        return report
+
+
+class ReportParserPre20250520(ReportParser):
+    TEMPLATE_VERSION = "pre-2025.05.20"
+
+    METADATA_LABEL_TO_FIELD = {
+        "incident severity": "severity",
+        "incident jira ticket": "issues",
+        "time of first impact": "impact_start",
+        "time alerted": "alerted",
+        "time acknowledge": "acknowledged",
+        "time acknowledged": "acknowledged",
+        "time responded/engaged": "responded",
+        "time mitigated (repaired)": "mitigated",
+        "time resolved": "resolved",
+        "current status": "status",
+    }
+
+    def metadata_list_to_report(self, report: IncidentReport, list_token):
+        """Parse the metadata bullet list and update IncidentReport."""
+        if list_token is None:
+            return
+
+        md_data: dict = {}
+        for item in list_token.children:
+            item_text = get_text(item, keep_links=False)
+            item_text_links = get_text(item, keep_links=True)
+
+            if ":" not in item_text:
+                continue
+
+            label, _, value = item_text.partition(":")
+            _, _, value_links = item_text_links.partition(":")
+
+            label = label.strip().lower()
+
+            field = None
+            for key, val in self.METADATA_LABEL_TO_FIELD.items():
+                if key in label:
+                    field = val
+                    break
+            if field is None:
+                continue
+
+            if field == "issues":
+                md_data[field] = value_links.strip()
+            else:
+                md_data[field] = value.strip()
+
+        # Jira URL and key
+        report.jira_url = extract_jira_iim_url(md_data.get("issues", ""))
+        report.key = extract_jira_key(report.jira_url)
+
+        # Status — old format may wrap in escaped brackets: \[Resolved\]
+        status = re.sub(r"[\[\]\\]+", "", md_data.get("status", "")).strip()
+        if status.lower().startswith("mitigated"):
+            report.status = "Mitigated"
+        elif status.lower().startswith(("resolved", "done")):
+            report.status = "Resolved"
+        else:
+            report.status = "In Progress"
+
+        # Severity
+        severity = md_data.get("severity", "")
+        if "S1" in severity:
+            report.severity = "S1"
+        elif "S2" in severity:
+            report.severity = "S2"
+        elif "S3" in severity:
+            report.severity = "S3"
+        elif "S4" in severity:
+            report.severity = "S4"
+        else:
+            report.severity = None
+
+        report.impact_start = extract_timestamp(md_data.get("impact_start"))
+        report.alerted = extract_timestamp(md_data.get("alerted"))
+        report.acknowledged = extract_timestamp(md_data.get("acknowledged"))
+        report.responded = extract_timestamp(md_data.get("responded"))
+        report.mitigated = extract_timestamp(md_data.get("mitigated"))
+        report.resolved = extract_timestamp(md_data.get("resolved"))
+
+    def action_items_list_to_report(self, report: IncidentReport, list_token):
+        """Parse action items bullet list and update IncidentReport."""
+        if list_token is None:
+            return
+
+        report.action_items = []
+        for item in list_token.children:
+            item_text = get_text(item, keep_links=False)
+
+            # Determine status from checkbox prefix
+            if re.match(r"^\[x\]", item_text, re.IGNORECASE):
+                status = "DONE"
+            else:
+                status = "OPEN"
+
+            # First non-mailto link is the action item URL
+            url = next(
+                (
+                    dest
+                    for dest in _recursive_link_dests(item)
+                    if not dest.startswith("mailto:")
+                ),
+                None,
+            )
+
+            # Title: strip checkbox, optional leading ~~ (strikethrough), ticket ref
+            title = item_text
+            title = re.sub(r"^\[.\]\s*", "", title)
+            title = re.sub(r"^~~", "", title)
+            title = re.sub(r"^\[[^\]]*\]\s*", "", title)
+            title = re.sub(r"~~$", "", title)
+            title = title.strip()
+
+            if not title:
+                continue
+
+            report.action_items.append(ActionItem(url=url, status=status, title=title))
+
+    def parse_markdown(self, report: IncidentReport, md: str):
+        report.template_version = self.TEMPLATE_VERSION
+        ast = marko.Markdown().parse(md)
+        tokens = list(ast.children)
+
+        metadata_list = None
+        action_items_list = None
+
+        while tokens:
+            token = tokens.pop(0)
+            if is_header(token):
+                header_text = get_text(token, keep_links=False)
+                if "Incident: " in header_text or "Incident report: " in header_text:
+                    report.summary = header_text.strip()[10:]
+                    while tokens:
+                        token = tokens.pop(0)
+                        if isinstance(token, marko.block.List):
+                            metadata_list = token
+                            break
+
+                if header_text.startswith("Postmortem Action Items"):
+                    while tokens:
+                        token = tokens.pop(0)
+                        if isinstance(token, marko.block.List):
+                            action_items_list = token
+                            break
+
+        self.metadata_list_to_report(report, metadata_list)
+        self.action_items_list_to_report(report, action_items_list)
+        return report
 
 
 def parse_markdown(md):
@@ -399,6 +661,8 @@ def parse_markdown(md):
 
     if "Template version 2026.03.12" in md:
         parser = ReportParser20260312()
+    elif "* **Incident Jira Ticket**" in md:
+        parser = ReportParserPre20250520()
     else:
         parser = ReportParser20250520()
 
