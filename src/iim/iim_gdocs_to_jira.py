@@ -34,7 +34,7 @@ def read_markdown(fn: str) -> str:
 
     lines = md_data.strip().splitlines()
     for line in lines:
-        if line.startswith("# Incident:"):
+        if line.startswith("# ") and "Incident:" in line or "Incident report:" in line:
             break
     else:
         raise InvalidIncidentReport(f"{fn} is not an incident report")

@@ -152,7 +152,9 @@ def test_normalize_entities(value, expected):
 
 
 def test_parse_markdown_service_alpha():
-    service_alpha_md = (REPORTS_DIR / "incident_service_alpha_v20250520.md").read_text()
+    service_alpha_md = (
+        REPORTS_DIR / "20250520" / "incident_service_alpha.md"
+    ).read_text()
     data = parse_markdown(service_alpha_md)
     assert data.key == "IIM-131"
     assert data.jira_url == "https://example.com/browse/IIM-131"
@@ -165,7 +167,9 @@ def test_parse_markdown_service_alpha():
 
 
 def test_parse_markdown_bravoservice():
-    bravoservice_md = (REPORTS_DIR / "incident_bravoservice_v20250520.md").read_text()
+    bravoservice_md = (
+        REPORTS_DIR / "20250520" / "incident_bravoservice.md"
+    ).read_text()
     data = parse_markdown(bravoservice_md)
     assert data.key == "IIM-133"
     assert data.jira_url == "https://example.com/browse/IIM-133"
@@ -343,7 +347,7 @@ def test_metadata_table_to_report_v20260312_manual_detection():
 
 def test_parse_markdown_v20260312_no_jira_url():
     """The test document has an empty Jira ticket field."""
-    md = (REPORTS_DIR / "2026_03_13_test_report_v20260312.md").read_text()
+    md = (REPORTS_DIR / "20260312" / "incident_testreport.md").read_text()
     with pytest.raises(NoJiraIIMURLError):
         parse_markdown(md)
 
@@ -352,7 +356,7 @@ def test_parse_markdown_v20260312_summary():
     """Summary is extracted from the # Incident: header, not a table row."""
     report = IncidentReport()
     parser = ReportParser20260312()
-    md = (REPORTS_DIR / "2026_03_13_test_report_v20260312.md").read_text()
+    md = (REPORTS_DIR / "20260312" / "incident_testreport.md").read_text()
     try:
         parser.parse_markdown(report, md)
     except NoJiraIIMURLError:
@@ -361,7 +365,7 @@ def test_parse_markdown_v20260312_summary():
 
 
 def test_parse_markdown_v20250520_sets_template_version():
-    md = (REPORTS_DIR / "incident_service_alpha_v20250520.md").read_text()
+    md = (REPORTS_DIR / "20250520" / "incident_service_alpha.md").read_text()
     report = parse_markdown(md)
     assert report.template_version == "2025.05.20"
 
@@ -369,7 +373,7 @@ def test_parse_markdown_v20250520_sets_template_version():
 def test_parse_markdown_v20260312_sets_template_version():
     report = IncidentReport()
     parser = ReportParser20260312()
-    md = (REPORTS_DIR / "2026_03_13_test_report_v20260312.md").read_text()
+    md = (REPORTS_DIR / "20260312" / "incident_testreport.md").read_text()
     try:
         parser.parse_markdown(report, md)
     except NoJiraIIMURLError:
@@ -478,7 +482,7 @@ def test_action_items_list_to_report():
 
 def test_parse_markdown_deltaservice():
     """Full document parse of a pre-20250520 bullet-list-format incident report."""
-    md = (REPORTS_DIR / "incident_deltaservice_pre_20250520.md").read_text()
+    md = (REPORTS_DIR / "pre20250520" / "incident_deltaservice.md").read_text()
     data = parse_markdown(md)
     assert data.key == "IIM-17"
     assert data.jira_url == "https://example.net/browse/IIM-17"
@@ -496,7 +500,7 @@ def test_parse_markdown_deltaservice():
 
 def test_parse_markdown_deltaservice_action_items():
     """Action items from pre-20250520 format: correct count, URLs, and statuses."""
-    md = (REPORTS_DIR / "incident_deltaservice_pre_20250520.md").read_text()
+    md = (REPORTS_DIR / "pre20250520" / "incident_deltaservice.md").read_text()
     data = parse_markdown(md)
     assert data.action_items is not None
     assert len(data.action_items) == 7
@@ -519,7 +523,7 @@ def test_parse_markdown_deltaservice_action_items():
 
 def test_parse_markdown_symbols():
     """Full document parse of symbols-style pre-20250520 report."""
-    md = (REPORTS_DIR / "incident_symbols_pre20250520.md").read_text()
+    md = (REPORTS_DIR / "pre20250520" / "incident_symbols.md").read_text()
     data = parse_markdown(md)
     assert data.key == "IIM-17"
     assert data.jira_url == "https://example.net/browse/IIM-17"
@@ -532,7 +536,7 @@ def test_parse_markdown_symbols():
 
 def test_parse_markdown_symbols_action_items():
     """Action items from symbols-style report: trailing ticket ref stripped."""
-    md = (REPORTS_DIR / "incident_symbols_pre20250520.md").read_text()
+    md = (REPORTS_DIR / "pre20250520" / "incident_symbols.md").read_text()
     data = parse_markdown(md)
     assert data.action_items is not None
     assert len(data.action_items) == 3
