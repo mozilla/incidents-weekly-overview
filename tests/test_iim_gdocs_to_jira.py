@@ -389,7 +389,10 @@ def test_generate_metadata_diff_none_option_field_value_is_none(field_name, diff
         key="IIM-1", summary="Test incident", **{field_name: "S2"}
     )
     report_data = IncidentReport(
-        key="IIM-1", summary="Test incident", **{field_name: None}
+        key="IIM-1",
+        summary="Test incident",
+        template_version="2026.03.12",
+        **{field_name: None},
     )
     diff = generate_metadata_diff(jira_data=jira_data, report_data=report_data)
     item = next(d for d in diff if d.name == diff_name)

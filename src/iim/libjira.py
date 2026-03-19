@@ -267,6 +267,7 @@ class JiraAPI:
             url, headers=headers, json=payload, auth=self._auth, timeout=30
         )
         if response.status_code not in (200, 204):
+            print(response.json())
             response.raise_for_status()
 
     def update_issue_data(self, issue_key: str, updated_fields: dict) -> None:
@@ -284,6 +285,7 @@ class JiraAPI:
         )
         # Jira returns 204 No Content on success
         if response.status_code not in (200, 204):
+            print(response.json())
             response.raise_for_status()
 
     def add_issue_link(self, incident_key: str, linked_issue_key: str) -> None:
@@ -298,7 +300,13 @@ class JiraAPI:
         response = requests.post(
             url, auth=self._auth, headers=headers, json=payload, timeout=30
         )
-        if response.status_code not in (200, 201):
+        # NOTE(willkg): Ignore 401 which occurs when we're trying to link to an
+        # issue in an archived space.
+        # FIXME(willkg): Ignore 404 which occurs when the token belongs to a
+        # Jira account that doesn't have access to the issue being linked. Need
+        # to figure out a better way to handle this.
+        if response.status_code not in (200, 201, 401, 404):
+            print(response.json())
             response.raise_for_status()
 
     def remove_issue_link(self, link_id: str) -> None:
@@ -308,6 +316,7 @@ class JiraAPI:
             url, auth=self._auth, headers=self._headers, timeout=30
         )
         if response.status_code not in (200, 204):
+            print(response.json())
             response.raise_for_status()
 
     def add_remote_link(self, incident_key: str, action_item: ActionItem) -> None:
@@ -324,6 +333,7 @@ class JiraAPI:
             url, auth=self._auth, headers=headers, json=payload, timeout=30
         )
         if response.status_code not in (200, 201):
+            print(response.json())
             response.raise_for_status()
 
     def remove_remote_link(self, incident_key: str, action_item: ActionItem) -> None:
@@ -333,4 +343,5 @@ class JiraAPI:
             url, auth=self._auth, headers=self._headers, timeout=30
         )
         if response.status_code not in (200, 204):
+            print(response.json())
             response.raise_for_status()
