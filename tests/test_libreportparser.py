@@ -9,10 +9,10 @@ import pytest
 
 from iim.libreport import IncidentReport
 from iim.libreportparser import (
-    NoJiraKeyError,
-    NoJiraURLError,
+    NoJiraIIMKeyError,
+    NoJiraIIMURLError,
     extract_jira_key,
-    extract_jira_url,
+    extract_jira_iim_url,
     extract_timestamp,
     is_table,
     metadata_table_to_report,
@@ -24,27 +24,27 @@ REPORTS_DIR = Path(__file__).parent / "data"
 
 
 # ---------------------------------------------------------------------------
-# extract_jira_url
+# extract_jira_iim_url
 # ---------------------------------------------------------------------------
 
 
-def test_extract_jira_url_markdown_link():
+def test_extract_jira_iim_url_markdown_link():
     assert (
-        extract_jira_url("[IIM-131](https://jira.example.com/browse/IIM-131)")
+        extract_jira_iim_url("[IIM-131](https://jira.example.com/browse/IIM-131)")
         == "https://jira.example.com/browse/IIM-131"
     )
 
 
-def test_extract_jira_url_plain_url():
+def test_extract_jira_iim_url_plain_url():
     assert (
-        extract_jira_url("https://mozilla-hub.atlassian.net/browse/IIM-95")
+        extract_jira_iim_url("https://mozilla-hub.atlassian.net/browse/IIM-95")
         == "https://mozilla-hub.atlassian.net/browse/IIM-95"
     )
 
 
-def test_extract_jira_url_no_url():
-    with pytest.raises(NoJiraURLError):
-        extract_jira_url("no jira url here")
+def test_extract_jira_iim_url_no_url():
+    with pytest.raises(NoJiraIIMURLError):
+        extract_jira_iim_url("no jira url here")
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +57,7 @@ def test_extract_jira_key_from_url():
 
 
 def test_extract_jira_key_no_key():
-    with pytest.raises(NoJiraKeyError):
+    with pytest.raises(NoJiraIIMKeyError):
         extract_jira_key("https://example.com/no/key/here")
 
 
