@@ -305,11 +305,11 @@ def test_generate_actions_diff_item_removed():
     assert diff[0].new_value is None
 
 
-def test_generate_actions_diff_field_value_contains_both_items():
+def test_generate_actions_diff_from_to_contains_both_items():
     jira_data = IncidentReport(key="IIM-1", action_items=[GH_ITEM])
     report_data = IncidentReport(key="IIM-1", action_items=[GH_ITEM])
     diff = generate_actions_diff(jira_data=jira_data, report_data=report_data)
-    assert diff[0].field_value == [GH_ITEM, GH_ITEM]
+    assert diff[0].from_to == (GH_ITEM, GH_ITEM)
 
 
 def test_generate_actions_diff_non_jira_item_status_changed():

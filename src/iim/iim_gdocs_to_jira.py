@@ -9,7 +9,7 @@ Convert incident reports (as markdown) to field data and push to Jira.
 from dataclasses import dataclass
 import os
 import traceback
-from typing import Any
+from typing import Any, Optional
 
 import click
 from dotenv import load_dotenv
@@ -17,7 +17,7 @@ import rich
 from rich.table import Table
 
 from iim.libjira import JiraAPI, to_jira_field
-from iim.libreport import IncidentReport
+from iim.libreport import ActionItem, jira_key, IncidentReport
 from iim.libreportparser import NoJiraIIMURLError, NoJiraIIMKeyError, parse_markdown
 
 
@@ -46,7 +46,10 @@ class Diff:
     name: str
     old_value: Any
     new_value: Any
-    field_value: Any
+    # for metadata changes
+    field_value: Optional[dict] = None
+    # for action item changes
+    from_to: Optional[tuple[Optional[ActionItem], Optional[ActionItem]]] = None
 
 
 def generate_status_diff(jira_data, report_data):
@@ -182,7 +185,9 @@ def generate_metadata_diff(jira_data, report_data):
     return diff
 
 
-def generate_actions_diff(jira_data, report_data):
+def generate_actions_diff(
+    jira_data: IncidentReport, report_data: IncidentReport
+) -> list[Diff]:
     diff = []
 
     all_action_items = set()
@@ -203,7 +208,7 @@ def generate_actions_diff(jira_data, report_data):
         all_action_items.add(item.url)
         markdown_report_action_items[item.url] = item
 
-    for item_url in all_action_items:
+    for item_url in sorted(all_action_items):
         current_action_item = jira_action_items.get(item_url)
         current_value = current_action_item.essence() if current_action_item else None
 
@@ -215,7 +220,7 @@ def generate_actions_diff(jira_data, report_data):
                 name="action item",
                 old_value=current_value,
                 new_value=new_value,
-                field_value=[current_action_item, new_action_item],
+                from_to=(current_action_item, new_action_item),
             )
         )
     return diff
@@ -264,16 +269,16 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             traceback.print_exc()
             click.echo("Error: Error parsing document.")
             click.echo("Next?")
-            user_input = input()
+            input()
             continue
         except (NoJiraIIMKeyError, NoJiraIIMURLError):
             click.echo("Error: This incident report doesn't have the Jira IIM key.")
             click.echo("Next?")
-            user_input = input()
+            input()
             continue
 
-        jira_key = markdown_report.key
-        jira_incident: IncidentReport = jira_client.get_issue_report(jira_key)
+        issue_key = markdown_report.key
+        jira_incident: IncidentReport = jira_client.get_issue_report(issue_key)
 
         # Generate an understanding of what changed
         status_diff = generate_status_diff(
@@ -318,12 +323,12 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
         if not changes:
             click.echo("Nothing to change.")
             click.echo("Next?")
-            user_input = input()
+            input()
 
         elif dry_run:
             click.echo("Dry-run mode. Pass without --dry-run to commit.")
             click.echo("Next?")
-            user_input = input()
+            input()
 
         else:
             click.echo("ENTER to commit, CTRL-C to exit, S to skip")
@@ -335,32 +340,39 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
 
             # Handle status transition changes
             if status_diff.old_value != status_diff.new_value:
-                jira_client.update_issue_status(jira_key, status_diff.new_value)
+                jira_client.update_issue_status(issue_key, status_diff.new_value)
 
             # Update metadata
             updated_fields = {}
             for item in metadata_diff:
                 updated_fields.update(item.field_value)
-            jira_client.update_issue_data(jira_key, updated_fields)
+            jira_client.update_issue_data(issue_key, updated_fields)
 
             for item in actions_diff:
+                assert item.from_to is not None
+                old_item, new_item = item.from_to
                 if item.new_value and not item.old_value:
                     # Item needs to be added
-                    linked_key = jira_key(item.field_value[1].url)
+                    assert new_item is not None
+                    linked_key = jira_key(new_item.url)
                     if linked_key:
-                        jira_client.add_issue_link(jira_key, linked_key)
+                        jira_client.add_issue_link(issue_key, linked_key)
                     else:
-                        jira_client.add_remote_link(jira_key, item.field_value[1])
+                        jira_client.add_remote_link(issue_key, new_item)
                 elif item.old_value and not item.new_value:
                     # Item needs to be removed
-                    linked_key = jira_key(item.field_value[0].url)
+                    assert old_item is not None
+                    linked_key = jira_key(old_item.url)
                     if linked_key:
-                        jira_client.remove_issue_link(item.field_value[0].jira_id)
+                        assert old_item.jira_id is not None
+                        jira_client.remove_issue_link(old_item.jira_id)
                     else:
-                        jira_client.remove_remote_link(jira_key, item.field_value[0])
+                        jira_client.remove_remote_link(issue_key, old_item)
                 else:
                     # Item needs to be updated--old one removed and new one added
-                    jira_client.remove_remote_link(jira_key, item.field_value[0])
-                    jira_client.add_remote_link(jira_key, item.field_value[1])
+                    assert old_item is not None
+                    assert new_item is not None
+                    jira_client.remove_remote_link(issue_key, old_item)
+                    jira_client.add_remote_link(issue_key, new_item)
 
     click.echo("Done!")
