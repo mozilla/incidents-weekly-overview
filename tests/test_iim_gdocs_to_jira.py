@@ -15,13 +15,7 @@ from iim.iim_gdocs_to_jira import (
     generate_status_diff,
     read_markdown,
 )
-from iim.libreport import ActionItem
-from iim.libjira import (
-    get_issue_report,
-    update_jira_issue_data,
-    update_jira_issue_status,
-)
-from iim.libreport import IncidentReport
+from iim.libreport import ActionItem, IncidentReport
 
 
 JIRA_BASE_URL = "https://jira.example.com"
@@ -35,7 +29,7 @@ PASSWORD = "pass"
 
 
 @responses_lib.activate
-def test_get_issue_report_happy():
+def test_get_issue_report_happy(jira_client):
     issue_data = {
         "key": "IIM-131",
         "fields": {
@@ -57,14 +51,14 @@ def test_get_issue_report_happy():
         status=200,
     )
 
-    result = get_issue_report(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
+    result = jira_client.get_issue_report("IIM-131")
     assert result.key == "IIM-131"
     assert result.status == "Mitigated"
     assert result.summary == "Test incident"
 
 
 @responses_lib.activate
-def test_get_issue_report_401():
+def test_get_issue_report_401(jira_client):
     responses_lib.add(
         responses_lib.GET,
         f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131",
@@ -73,16 +67,16 @@ def test_get_issue_report_401():
     )
 
     with pytest.raises(requests.HTTPError):
-        get_issue_report(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
+        jira_client.get_issue_report("IIM-131")
 
 
 # ---------------------------------------------------------------------------
-# update_jira_issue_data
+# update_issue_data
 # ---------------------------------------------------------------------------
 
 
 @responses_lib.activate
-def test_update_jira_issue_data_happy():
+def test_update_issue_data_happy(jira_client):
     responses_lib.add(
         responses_lib.PUT,
         f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131",
@@ -90,13 +84,11 @@ def test_update_jira_issue_data_happy():
     )
 
     # Should not raise
-    update_jira_issue_data(
-        JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131", {"summary": "Test"}
-    )
+    jira_client.update_issue_data("IIM-131", {"summary": "Test"})
 
 
 @responses_lib.activate
-def test_update_jira_issue_data_400():
+def test_update_issue_data_400(jira_client):
     responses_lib.add(
         responses_lib.PUT,
         f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131",
@@ -105,18 +97,16 @@ def test_update_jira_issue_data_400():
     )
 
     with pytest.raises(requests.HTTPError):
-        update_jira_issue_data(
-            JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131", {"summary": "Test"}
-        )
+        jira_client.update_issue_data("IIM-131", {"summary": "Test"})
 
 
 # ---------------------------------------------------------------------------
-# update_jira_issue_status
+# update_issue_status
 # ---------------------------------------------------------------------------
 
 
 @responses_lib.activate
-def test_update_jira_issue_status_happy():
+def test_update_issue_status_happy(jira_client):
     transitions_url = f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131/transitions"
     responses_lib.add(
         responses_lib.GET,
@@ -136,12 +126,12 @@ def test_update_jira_issue_status_happy():
     )
 
     # Should not raise
-    update_jira_issue_status(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131", "Mitigated")
+    jira_client.update_issue_status("IIM-131", "Mitigated")
     assert len(responses_lib.calls) == 2
 
 
 @responses_lib.activate
-def test_update_jira_issue_status_unknown_status():
+def test_update_issue_status_unknown_status(jira_client):
     transitions_url = f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131/transitions"
     responses_lib.add(
         responses_lib.GET,
@@ -156,13 +146,11 @@ def test_update_jira_issue_status_unknown_status():
     )
 
     with pytest.raises(ValueError, match="Available transitions"):
-        update_jira_issue_status(
-            JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131", "Nonexistent"
-        )
+        jira_client.update_issue_status("IIM-131", "Nonexistent")
 
 
 @responses_lib.activate
-def test_update_jira_issue_status_get_error():
+def test_update_issue_status_get_error(jira_client):
     transitions_url = f"{JIRA_BASE_URL}/rest/api/3/issue/IIM-131/transitions"
     responses_lib.add(
         responses_lib.GET,
@@ -172,9 +160,7 @@ def test_update_jira_issue_status_get_error():
     )
 
     with pytest.raises(requests.HTTPError):
-        update_jira_issue_status(
-            JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131", "Mitigated"
-        )
+        jira_client.update_issue_status("IIM-131", "Mitigated")
 
 
 # ---------------------------------------------------------------------------
@@ -475,7 +461,7 @@ def test_generate_status_diff_field_value_always_none(jira_status, report_status
 
 
 @responses_lib.activate
-def test_get_issue_report_remote_links_action_items_parsed():
+def test_get_issue_report_remote_links_action_items_parsed(jira_client):
     issue_data = {
         "key": "IIM-131",
         "fields": {
@@ -507,7 +493,7 @@ def test_get_issue_report_remote_links_action_items_parsed():
         status=200,
     )
 
-    result = get_issue_report(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
+    result = jira_client.get_issue_report("IIM-131")
     assert len(result.action_items) == 1
     item = result.action_items[0]
     assert item.url == gh_url
@@ -517,7 +503,7 @@ def test_get_issue_report_remote_links_action_items_parsed():
 
 
 @responses_lib.activate
-def test_get_issue_report_remote_links_non_action_ignored():
+def test_get_issue_report_remote_links_non_action_ignored(jira_client):
     issue_data = {
         "key": "IIM-131",
         "fields": {
@@ -548,7 +534,7 @@ def test_get_issue_report_remote_links_non_action_ignored():
         status=200,
     )
 
-    result = get_issue_report(JIRA_BASE_URL, USERNAME, PASSWORD, "IIM-131")
+    result = jira_client.get_issue_report("IIM-131")
     assert result.action_items == []
 
 

@@ -16,9 +16,9 @@ from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from iim.libjira import (
+    JiraAPI,
     fix_jira_incident_data,
     generate_jira_link,
-    get_all_issues_for_project,
 )
 
 
@@ -67,22 +67,19 @@ def iim_weekly_report(ctx):
     * JIRA_TOKEN
     * JIRA_URL
     """
-    username = os.environ["JIRA_USERNAME"].strip()
-    password = os.environ["JIRA_TOKEN"].strip()
-    url = os.environ["JIRA_URL"].strip().rstrip("/")
+    jira_client = JiraAPI(
+        base_url=os.environ["JIRA_URL"].strip(),
+        username=os.environ["JIRA_USERNAME"].strip(),
+        password=os.environ["JIRA_TOKEN"].strip(),
+    )
 
     if not os.path.exists(OVERVIEWS_DIR):
         os.mkdir(OVERVIEWS_DIR)
 
-    issue_data = get_all_issues_for_project(
-        jira_base_url=url,
-        project_key="IIM",
-        username=username,
-        password=password,
-    )
+    issue_data = jira_client.get_all_issues_for_project(project_key="IIM")
 
     incidents = [
-        fix_jira_incident_data(jira_url=url, incident=incident)
+        fix_jira_incident_data(jira_url=jira_client.base_url, incident=incident)
         for incident in issue_data
     ]
 
@@ -167,12 +164,12 @@ def iim_weekly_report(ctx):
         num_s4_incidents=severity_breakdown.get("S4", 0),
         new_incidents=new_incidents,
         new_incidents_link=generate_jira_link(
-            jira_url=url,
+            jira_url=jira_client.base_url,
             incident_keys=[item.key for item in new_incidents if item.key],
         ),
         active_incidents=active_incidents,
         active_incidents_link=generate_jira_link(
-            jira_url=url,
+            jira_url=jira_client.base_url,
             incident_keys=[item.key for item in active_incidents if item.key],
         ),
     )

@@ -142,302 +142,194 @@ def generate_jira_link(jira_url: str, incident_keys: list[str]):
     return base + urllib.parse.urlencode(params)
 
 
-def get_all_issues_for_project(
-    jira_base_url: str,
-    project_key: str,
-    username: str,
-    password: str,
-    max_results: int = 100,
-    fields: Union[str, list[str]] = "*all",
-) -> list[dict]:
-    """
-    Fetch all Jira issues for a given project key (Jira Cloud) using the
-    enhanced JQL search endpoint: GET /rest/api/3/search/jql.
+class JiraAPI:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url.rstrip("/")
+        self._auth = HTTPBasicAuth(username, password)
+        self._headers = {"Accept": "application/json"}
 
-    Returns: list of issue JSON objects.
-    """
-    issues: list[dict] = []
-    next_page_token: Optional[str] = None
+    def get_all_issues_for_project(
+        self,
+        project_key: str,
+        max_results: int = 100,
+        fields: Union[str, list[str]] = "*all",
+    ) -> list[dict]:
+        """
+        Fetch all Jira issues for a given project key (Jira Cloud) using the
+        enhanced JQL search endpoint: GET /rest/api/3/search/jql.
 
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json"}
+        Returns: list of issue JSON objects.
+        """
+        issues: list[dict] = []
+        next_page_token: Optional[str] = None
 
-    # Bounded JQL is recommended/required for some newer endpoints; ordering helps keep it stable.
-    jql = f'project = "{project_key}" and issueType = "Incident" ORDER BY created ASC'
-
-    while True:
-        params = {
-            "jql": jql,
-            "maxResults": max_results,
-            "fields": fields,
-        }
-        if next_page_token:
-            params["nextPageToken"] = next_page_token
-
-        resp = requests.get(
-            f"{jira_base_url.rstrip('/')}/rest/api/3/search/jql",
-            headers=headers,
-            params=params,
-            auth=auth,
-            timeout=30,
-        )
-        resp.raise_for_status()
-
-        data = resp.json()
-        issues.extend(data.get("issues", []))
-
-        # Enhanced search pagination: stop when isLast == True, otherwise
-        # follow nextPageToken.
-        if data.get("isLast") is True:
-            break
-
-        next_page_token = data.get("nextPageToken")
-        if not next_page_token:
-            # Defensive: if Jira doesn't provide a token but also didn't say
-            # it's last, stop to avoid looping.
-            break
-
-    return issues
-
-
-def get_issue_remotelinks(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    issue_key: str,
-) -> list[dict]:
-    """
-    Fetches remote links (external URL links) for a Jira issue.
-    """
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json"}
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}/remotelink"
-
-    response = requests.get(url, auth=auth, headers=headers, timeout=30)
-    response.raise_for_status()
-
-    return response.json()
-
-
-def get_issue(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    issue_key: str,
-) -> dict:
-    """
-    Requests Jira incident issue data.
-    """
-
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json"}
-
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}"
-
-    response = requests.get(
-        url,
-        auth=auth,
-        headers=headers,
-        timeout=30,
-    )
-
-    # Raise an exception for 4xx/5xx responses
-    response.raise_for_status()
-
-    return response.json()
-
-
-def get_issue_report(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    issue_key: str,
-) -> IncidentReport:
-    """
-    Fetches data for the Jira incident issue specified by incident_key.
-    """
-    data = get_issue(
-        jira_base_url=jira_base_url,
-        username=username,
-        password=password,
-        issue_key=issue_key,
-    )
-    remotelinks = get_issue_remotelinks(
-        jira_base_url=jira_base_url,
-        username=username,
-        password=password,
-        issue_key=issue_key,
-    )
-
-    return fix_jira_incident_data(
-        jira_url=jira_base_url, incident=data, remotelinks=remotelinks
-    )
-
-
-def update_jira_issue_status(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    issue_key: str,
-    new_status: str,
-):
-    """
-    Update a Jira issue's status by transitioning it.
-
-    :raises requests.HTTPError: if the request fails
-    """
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}/transitions"
-
-    auth = HTTPBasicAuth(username, password)
-    headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-
-    # Step 1: Get available transitions
-    response = requests.get(
-        url,
-        headers=headers,
-        auth=auth,
-        timeout=30,
-    )
-
-    if response.status_code not in (200, 204):
-        response.raise_for_status()
-
-    transitions = response.json().get("transitions", [])
-
-    # Step 2: Find matching transition by status name
-    transition_id = None
-    for transition in transitions:
-        if transition["to"]["name"].lower() == new_status.lower():
-            transition_id = transition["id"]
-            break
-
-    if not transition_id:
-        available = [t["to"]["name"] for t in transitions]
-        raise ValueError(
-            f"Status '{new_status}' is not a valid transition for {issue_key}. "
-            f"Available transitions: {available}"
+        # Bounded JQL is recommended/required for some newer endpoints; ordering helps keep it stable.
+        jql = (
+            f'project = "{project_key}" and issueType = "Incident" ORDER BY created ASC'
         )
 
-    # Step 3: Perform transition
-    payload = {"transition": {"id": transition_id}}
+        while True:
+            params: dict = {
+                "jql": jql,
+                "maxResults": max_results,
+                "fields": fields,
+            }
+            if next_page_token:
+                params["nextPageToken"] = next_page_token
 
-    response = requests.post(
-        url,
-        headers=headers,
-        json=payload,
-        auth=auth,
-        timeout=30,
-    )
+            resp = requests.get(
+                f"{self.base_url}/rest/api/3/search/jql",
+                headers=self._headers,
+                params=params,
+                auth=self._auth,
+                timeout=30,
+            )
+            resp.raise_for_status()
 
-    if response.status_code not in (200, 204):
+            data = resp.json()
+            issues.extend(data.get("issues", []))
+
+            # Enhanced search pagination: stop when isLast == True, otherwise
+            # follow nextPageToken.
+            if data.get("isLast") is True:
+                break
+
+            next_page_token = data.get("nextPageToken")
+            if not next_page_token:
+                # Defensive: if Jira doesn't provide a token but also didn't say
+                # it's last, stop to avoid looping.
+                break
+
+        return issues
+
+    def get_issue_remotelinks(self, issue_key: str) -> list[dict]:
+        """
+        Fetches remote links (external URL links) for a Jira issue.
+        """
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/remotelink"
+        response = requests.get(url, auth=self._auth, headers=self._headers, timeout=30)
         response.raise_for_status()
+        return response.json()
 
-
-def update_jira_issue_data(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    issue_key: str,
-    updated_fields: dict,
-) -> None:
-    """
-    Update a Jira issue with new field data.
-
-    :raises requests.HTTPError: if the request fails
-    """
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{issue_key}"
-
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json"}
-    payload = {
-        "fields": updated_fields,
-    }
-
-    response = requests.put(
-        url,
-        auth=auth,
-        headers=headers,
-        json=payload,
-        timeout=30,
-    )
-
-    # Jira returns 204 No Content on success
-    if response.status_code not in (200, 204):
+    def get_issue(self, issue_key: str) -> dict:
+        """
+        Requests Jira incident issue data.
+        """
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}"
+        response = requests.get(url, auth=self._auth, headers=self._headers, timeout=30)
         response.raise_for_status()
+        return response.json()
 
+    def get_issue_report(self, issue_key: str) -> IncidentReport:
+        """
+        Fetches data for the Jira incident issue specified by issue_key.
+        """
+        data = self.get_issue(issue_key)
+        remotelinks = self.get_issue_remotelinks(issue_key)
+        return fix_jira_incident_data(
+            jira_url=self.base_url, incident=data, remotelinks=remotelinks
+        )
 
-def add_jira_issue_link(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    incident_key: str,
-    linked_issue_key: str,
-) -> None:
-    """Create an 'Action item' issue link from incident_key to linked_issue_key."""
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issueLink"
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    payload = {
-        "type": {"name": "Action item"},
-        "inwardIssue": {"key": incident_key},
-        "outwardIssue": {"key": linked_issue_key},
-    }
-    response = requests.post(url, auth=auth, headers=headers, json=payload, timeout=30)
-    if response.status_code not in (200, 201):
-        response.raise_for_status()
+    def update_issue_status(self, issue_key: str, new_status: str) -> None:
+        """
+        Update a Jira issue's status by transitioning it.
 
+        :raises requests.HTTPError: if the request fails
+        """
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}/transitions"
+        headers = {**self._headers, "Content-Type": "application/json"}
 
-def remove_jira_issue_link(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    link_id: str,
-) -> None:
-    """Delete a Jira issue link by its ID."""
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issueLink/{link_id}"
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json"}
-    response = requests.delete(url, auth=auth, headers=headers, timeout=30)
-    if response.status_code not in (200, 204):
-        response.raise_for_status()
+        # Step 1: Get available transitions
+        response = requests.get(url, headers=headers, auth=self._auth, timeout=30)
+        if response.status_code not in (200, 204):
+            response.raise_for_status()
 
+        transitions = response.json().get("transitions", [])
 
-def add_remote_link(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    incident_key: str,
-    action_item: ActionItem,
-) -> None:
-    """Create a remote link on a Jira issue for a non-Jira action item."""
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{incident_key}/remotelink"
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json", "Content-Type": "application/json"}
-    payload = {
-        "object": {
-            "url": action_item.url,
-            "title": action_item.essence(),
+        # Step 2: Find matching transition by status name
+        transition_id = None
+        for transition in transitions:
+            if transition["to"]["name"].lower() == new_status.lower():
+                transition_id = transition["id"]
+                break
+
+        if not transition_id:
+            available = [t["to"]["name"] for t in transitions]
+            raise ValueError(
+                f"Status '{new_status}' is not a valid transition for {issue_key}. "
+                f"Available transitions: {available}"
+            )
+
+        # Step 3: Perform transition
+        payload = {"transition": {"id": transition_id}}
+        response = requests.post(
+            url, headers=headers, json=payload, auth=self._auth, timeout=30
+        )
+        if response.status_code not in (200, 204):
+            response.raise_for_status()
+
+    def update_issue_data(self, issue_key: str, updated_fields: dict) -> None:
+        """
+        Update a Jira issue with new field data.
+
+        :raises requests.HTTPError: if the request fails
+        """
+        url = f"{self.base_url}/rest/api/3/issue/{issue_key}"
+        headers = {**self._headers, "Content-Type": "application/json"}
+        payload = {"fields": updated_fields}
+
+        response = requests.put(
+            url, auth=self._auth, headers=headers, json=payload, timeout=30
+        )
+        # Jira returns 204 No Content on success
+        if response.status_code not in (200, 204):
+            response.raise_for_status()
+
+    def add_issue_link(self, incident_key: str, linked_issue_key: str) -> None:
+        """Create an 'Action item' issue link from incident_key to linked_issue_key."""
+        url = f"{self.base_url}/rest/api/3/issueLink"
+        headers = {**self._headers, "Content-Type": "application/json"}
+        payload = {
+            "type": {"name": "Action item"},
+            "inwardIssue": {"key": incident_key},
+            "outwardIssue": {"key": linked_issue_key},
         }
-    }
-    response = requests.post(url, auth=auth, headers=headers, json=payload, timeout=30)
-    if response.status_code not in (200, 201):
-        response.raise_for_status()
+        response = requests.post(
+            url, auth=self._auth, headers=headers, json=payload, timeout=30
+        )
+        if response.status_code not in (200, 201):
+            response.raise_for_status()
 
+    def remove_issue_link(self, link_id: str) -> None:
+        """Delete a Jira issue link by its ID."""
+        url = f"{self.base_url}/rest/api/3/issueLink/{link_id}"
+        response = requests.delete(
+            url, auth=self._auth, headers=self._headers, timeout=30
+        )
+        if response.status_code not in (200, 204):
+            response.raise_for_status()
 
-def remove_remote_link(
-    jira_base_url: str,
-    username: str,
-    password: str,
-    incident_key: str,
-    action_item: ActionItem,
-) -> None:
-    """Delete a remote link from a Jira issue using the link ID on the action item."""
-    url = f"{jira_base_url.rstrip('/')}/rest/api/3/issue/{incident_key}/remotelink/{action_item.jira_id}"
-    auth = HTTPBasicAuth(username, password)
-    headers = {"Accept": "application/json"}
-    response = requests.delete(url, auth=auth, headers=headers, timeout=30)
-    if response.status_code not in (200, 204):
-        response.raise_for_status()
+    def add_remote_link(self, incident_key: str, action_item: ActionItem) -> None:
+        """Create a remote link on a Jira issue for a non-Jira action item."""
+        url = f"{self.base_url}/rest/api/3/issue/{incident_key}/remotelink"
+        headers = {**self._headers, "Content-Type": "application/json"}
+        payload = {
+            "object": {
+                "url": action_item.url,
+                "title": action_item.essence(),
+            }
+        }
+        response = requests.post(
+            url, auth=self._auth, headers=headers, json=payload, timeout=30
+        )
+        if response.status_code not in (200, 201):
+            response.raise_for_status()
+
+    def remove_remote_link(self, incident_key: str, action_item: ActionItem) -> None:
+        """Delete a remote link from a Jira issue using the link ID on the action item."""
+        url = f"{self.base_url}/rest/api/3/issue/{incident_key}/remotelink/{action_item.jira_id}"
+        response = requests.delete(
+            url, auth=self._auth, headers=self._headers, timeout=30
+        )
+        if response.status_code not in (200, 204):
+            response.raise_for_status()
