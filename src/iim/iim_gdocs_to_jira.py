@@ -52,16 +52,22 @@ class Diff:
     from_to: Optional[tuple[Optional[ActionItem], Optional[ActionItem]]] = None
 
 
-def generate_status_diff(jira_data, report_data):
-    return Diff(
-        name="status",
-        old_value=jira_data.status,
-        new_value=report_data.status,
-        field_value=None,
-    )
+def generate_status_diff(
+    jira_data: IncidentReport, report_data: IncidentReport
+) -> list[Diff]:
+    return [
+        Diff(
+            name="status",
+            old_value=jira_data.status,
+            new_value=report_data.status,
+            field_value=None,
+        )
+    ]
 
 
-def generate_metadata_diff(jira_data, report_data):
+def generate_metadata_diff(
+    jira_data: IncidentReport, report_data: IncidentReport
+) -> list[Diff]:
     diff = []
 
     # Update summary
@@ -319,7 +325,7 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
         table.add_column("current")
         table.add_column("new")
 
-        all_diffs = [status_diff] + metadata_diff + actions_diff
+        all_diffs = status_diff + metadata_diff + actions_diff
 
         for part in all_diffs:
             old_value = str(part.old_value)
@@ -351,13 +357,14 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             click.echo("Committing to Jira ...")
 
             # Handle status transition changes
-            if status_diff.old_value != status_diff.new_value:
-                jira_client.update_issue_status(issue_key, status_diff.new_value)
+            if status_diff[0].old_value != status_diff[0].new_value:
+                jira_client.update_issue_status(issue_key, status_diff[0].new_value)
 
             # Update metadata
             updated_fields = {}
             for item in metadata_diff:
-                updated_fields.update(item.field_value)
+                if item.field_value:
+                    updated_fields.update(item.field_value)
             jira_client.update_issue_data(issue_key, updated_fields)
 
             for item in actions_diff:

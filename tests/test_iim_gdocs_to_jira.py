@@ -256,10 +256,11 @@ def test_generate_status_diff(jira_status, report_status):
     jira_data = IncidentReport(key="IIM-1", status=jira_status)
     report_data = IncidentReport(key="IIM-1", status=report_status)
     diff = generate_status_diff(jira_data=jira_data, report_data=report_data)
-    assert diff.name == "status"
-    assert diff.old_value == jira_status
-    assert diff.new_value == report_status
-    assert diff.field_value is None
+    assert diff[0].name == "status"
+    assert diff[0].old_value == jira_status
+    assert diff[0].new_value == report_status
+    assert diff[0].field_value is None
+    assert diff[0].from_to is None
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +453,8 @@ def test_generate_status_diff_field_value_always_none(jira_status, report_status
     jira_data = IncidentReport(key="IIM-1", status=jira_status)
     report_data = IncidentReport(key="IIM-1", status=report_status)
     diff = generate_status_diff(jira_data=jira_data, report_data=report_data)
-    assert diff.field_value is None
+    assert diff[0].field_value is None
+    assert diff[0].from_to is None
 
 
 # ---------------------------------------------------------------------------
