@@ -11,11 +11,12 @@ from iim.libreport import IncidentReport
 from iim.libreportparser import (
     NoJiraIIMKeyError,
     NoJiraIIMURLError,
+    ReportParser20250520,
+    ReportParser20260312,
     extract_jira_key,
     extract_jira_iim_url,
     extract_timestamp,
     is_table,
-    metadata_table_to_report,
     parse_markdown,
 )
 
@@ -87,7 +88,7 @@ def test_extract_timestamp(text, expected):
 
 
 # ---------------------------------------------------------------------------
-# parse_markdown
+# parse_markdown - ReportParser20250520
 # ---------------------------------------------------------------------------
 
 
@@ -101,6 +102,7 @@ def test_parse_markdown_service_alpha():
     assert data.status == "Mitigated"
     assert data.impact_start is not None
     assert data.mitigated is not None
+    assert data.action_items == []
 
 
 def test_parse_markdown_bravoservice():
@@ -111,14 +113,17 @@ def test_parse_markdown_bravoservice():
     assert data.severity == "S3"
     assert data.detection_method == "Automation"
     assert data.status == "Mitigated"
+    assert len(data.action_items) == 2
+    assert data.action_items[0].url == "https://example.com/browse/PUSH-630"
+    assert data.action_items[1].url == "https://example.com/browse/INFRASEC-2653"
 
 
 # ---------------------------------------------------------------------------
-# metadata_table_to_report
+# ReportParser20250520.metadata_table_to_report
 # ---------------------------------------------------------------------------
 
 
-SAMPLE_TABLE = """\
+SAMPLE_TABLE_20250520 = """\
 | Incident Severity | S2 - High |
 | :---- | :---- |
 | **Incident Title** | Test incident |
@@ -137,9 +142,10 @@ SAMPLE_TABLE = """\
 
 def test_metadata_table_to_report_happy():
     report = IncidentReport()
-    ast = marko.Markdown().parse(SAMPLE_TABLE)
+    parser = ReportParser20250520()
+    ast = marko.Markdown().parse(SAMPLE_TABLE_20250520)
     table_token = next(t for t in ast.children if is_table(t))
-    report = metadata_table_to_report(report, table_token)
+    report = parser.metadata_table_to_report(report, table_token)
     assert report.key == "IIM-99"
     assert report.jira_url == "https://jira.example.com/browse/IIM-99"
     assert report.severity == "S2"
@@ -150,7 +156,7 @@ def test_metadata_table_to_report_happy():
     assert report.resolved == "2026-01-01 12:00"
 
 
-SAMPLE_TABLE_2 = r"""\
+SAMPLE_TABLE_2_20250520 = r"""\
 
 | Incident Severity | *Consider the business impact as you set this Severity. Refer to [this guide](https://confluence.example.net/wiki/spaces/MIR/pages/20512894/Incident+Severity+Levels). If the priority of your incident changes during its lifecycle, please capture this in the Timeline section and one of the written sections. Include rationale for why you assigned this severity level.* S2 \- High |
 | :---- | :---- |
@@ -172,9 +178,10 @@ SAMPLE_TABLE_2 = r"""\
 
 def test_metadata_table_multiple_issues():
     report = IncidentReport()
-    ast = marko.Markdown().parse(SAMPLE_TABLE_2)
+    parser = ReportParser20250520()
+    ast = marko.Markdown().parse(SAMPLE_TABLE_2_20250520)
     table_token = next(t for t in ast.children if is_table(t))
-    report = metadata_table_to_report(report, table_token)
+    report = parser.metadata_table_to_report(report, table_token)
     assert report.key == "IIM-1000"
     assert report.jira_url == "https://jira.example.net/browse/IIM-1000"
     assert report.severity == "S2"
@@ -183,3 +190,125 @@ def test_metadata_table_multiple_issues():
     assert report.impact_start == "2026-03-02 00:00"
     assert report.mitigated == "2026-03-05 00:13"
     assert report.resolved == "2026-03-06 01:02"
+
+
+# ---------------------------------------------------------------------------
+# ReportParser20260312.metadata_table_to_report
+# ---------------------------------------------------------------------------
+
+
+SAMPLE_TABLE_20260312 = """\
+| Incident Severity *rationale* | S2 \\- High |
+| :---- | :---- |
+| **Current Status** | **Resolved** |
+| **Jira Ticket/Bug Number** | [IIM-200](https://jira.example.com/browse/IIM-200) |
+| **Time declared** *description* YYYY-MM-DD hh:mm | 2026-03-12 01:00 |
+| **Time of first Impact** *description* YYYY-MM-DD hh:mm | 2026-03-12 02:00 |
+| **Time Alerted** *description* YYYY-MM-DD hh:mm | 2026-03-12 03:00 |
+| **Time Acknowledged** *description* YYYY-MM-DD hh:mm | 2026-03-12 04:00 |
+| **Time Responded/Engaged** *description* YYYY-MM-DD hh:mm | 2026-03-12 05:00 |
+| **Time Mitigated (Repaired)** *description* YYYY-MM-DD hh:mm | 2026-03-12 06:00 |
+| **Time Resolved** *description* YYYY-MM-DD hh:mm | 2026-03-12 07:00 |
+| **Detection method** | **Automated Alert** |
+"""
+
+
+def test_metadata_table_to_report_v20260312():
+    report = IncidentReport()
+    parser = ReportParser20260312()
+    ast = marko.Markdown().parse(SAMPLE_TABLE_20260312)
+    table_token = next(t for t in ast.children if is_table(t))
+    report = parser.metadata_table_to_report(report, table_token)
+    assert report.key == "IIM-200"
+    assert report.jira_url == "https://jira.example.com/browse/IIM-200"
+    assert report.severity == "S2"
+    assert report.status == "Resolved"
+    assert report.detection_method == "Automation"
+    assert report.declared == "2026-03-12 01:00"
+    assert report.impact_start == "2026-03-12 02:00"
+    assert report.alerted == "2026-03-12 03:00"
+    assert report.acknowledged == "2026-03-12 04:00"
+    assert report.responded == "2026-03-12 05:00"
+    assert report.mitigated == "2026-03-12 06:00"
+    assert report.resolved == "2026-03-12 07:00"
+
+
+def test_metadata_table_to_report_v20260312_manual_detection():
+    report = IncidentReport()
+    parser = ReportParser20260312()
+    table_md = """\
+| **Jira Ticket/Bug Number** | [IIM-201](https://jira.example.com/browse/IIM-201) |
+| :---- | :---- |
+| **Detection method** | **Manual/Human** |
+| **Current Status** | Resolved |
+"""
+    ast = marko.Markdown().parse(table_md)
+    table_token = next(t for t in ast.children if is_table(t))
+    report = parser.metadata_table_to_report(report, table_token)
+    assert report.detection_method == "Manual"
+
+
+# ---------------------------------------------------------------------------
+# parse_markdown - ReportParser20260312
+# ---------------------------------------------------------------------------
+
+
+def test_parse_markdown_v20260312_no_jira_url():
+    """The test document has an empty Jira ticket field."""
+    md = (REPORTS_DIR / "2026_03_13_test_report_v20260312.md").read_text()
+    with pytest.raises(NoJiraIIMURLError):
+        parse_markdown(md)
+
+
+def test_parse_markdown_v20260312_summary():
+    """Summary is extracted from the # Incident: header, not a table row."""
+    report = IncidentReport()
+    parser = ReportParser20260312()
+    md = (REPORTS_DIR / "2026_03_13_test_report_v20260312.md").read_text()
+    try:
+        parser.parse_markdown(report, md)
+    except NoJiraIIMURLError:
+        pass
+    assert report.summary == "Test report affecting 0 users for 0 minutes"
+
+
+def test_parse_markdown_v20250520_sets_template_version():
+    md = (REPORTS_DIR / "incident_service_alpha_v20250520.md").read_text()
+    report = parse_markdown(md)
+    assert report.template_version == "2025.05.20"
+
+
+def test_parse_markdown_v20260312_sets_template_version():
+    report = IncidentReport()
+    parser = ReportParser20260312()
+    md = (REPORTS_DIR / "2026_03_13_test_report_v20260312.md").read_text()
+    try:
+        parser.parse_markdown(report, md)
+    except NoJiraIIMURLError:
+        pass
+    assert report.template_version == "2026.03.12"
+
+
+def test_parse_markdown_selects_v20260312_parser():
+    """parse_markdown selects ReportParser20260312 when template version is present."""
+    # Build a minimal v20260312 document with a real IIM URL
+    md = """\
+# Incident: Parser selection test
+
+Template version 2026.03.12
+
+| **Jira Ticket/Bug Number** | [IIM-999](https://jira.example.com/browse/IIM-999) |
+| :---- | :---- |
+| **Current Status** | Resolved |
+| **Detection method** | **Automated Alert** |
+
+# Postmortem Action Items
+
+| Jira Ticket + Status | Ticket Title |
+| :---- | :---- |
+"""
+    report = parse_markdown(md)
+    assert report.key == "IIM-999"
+    assert report.status == "Resolved"
+    assert report.detection_method == "Automation"
+    assert report.template_version == "2026.03.12"

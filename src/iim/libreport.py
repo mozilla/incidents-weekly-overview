@@ -135,6 +135,8 @@ class IncidentReport:
     tt_alert: Optional[str] = None
     tt_mit: Optional[str] = None
     action_items: Optional[list[ActionItem]] = None
+    # incident report template version (e.g. "2026.03.12")
+    template_version: Optional[str] = None
 
     @property
     def tracked_action_items(self):
