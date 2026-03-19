@@ -130,13 +130,14 @@ class IncidentReport:
     responded: Optional[str] = None
     mitigated: Optional[str] = None
     resolved: Optional[str] = None
+    # action items
+    action_items: Optional[list[ActionItem]] = None
+    # incident report template version (e.g. "2026.03.12")
+    template_version: Optional[str] = None
     # computed timing fields populated by iim_weekly_overview
     tt_dec: Optional[str] = None
     tt_alert: Optional[str] = None
     tt_mit: Optional[str] = None
-    action_items: Optional[list[ActionItem]] = None
-    # incident report template version (e.g. "2026.03.12")
-    template_version: Optional[str] = None
 
     @property
     def tracked_action_items(self):
