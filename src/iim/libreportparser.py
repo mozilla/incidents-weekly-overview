@@ -363,7 +363,9 @@ class ReportParser20250520(ReportParser):
                 continue
 
             url = next(_cell_link_dests(ticket_cell), None)
-            # This is an example url from the template--skip this row
+            # Drop action items whose URL is a mailto or the template placeholder
+            if url and url.startswith("mailto:"):
+                continue
             if url == "https://mozilla-hub.atlassian.net/browse/":
                 continue
             status = self._extract_action_item_status(ticket_cell)
@@ -372,6 +374,9 @@ class ReportParser20250520(ReportParser):
 
     def parse_markdown(self, report, md):
         report.template_version = self.TEMPLATE_VERSION
+
+        metadata_table = None
+        action_items_table = None
         ast = marko.Markdown().parse(md)
         tokens = list(ast.children)
         while tokens:
@@ -512,11 +517,13 @@ class ReportParserPre20250520(ReportParser):
     METADATA_LABEL_TO_FIELD = {
         "incident severity": "severity",
         "incident jira ticket": "issues",
+        "start of impact": "impact_start",
         "time of first impact": "impact_start",
         "time alerted": "alerted",
         "time acknowledge": "acknowledged",
         "time acknowledged": "acknowledged",
         "time responded/engaged": "responded",
+        "time of repair": "mitigated",
         "time mitigated (repaired)": "mitigated",
         "time resolved": "resolved",
         "current status": "status",
@@ -617,6 +624,8 @@ class ReportParserPre20250520(ReportParser):
             title = re.sub(r"^~~", "", title)
             title = re.sub(r"^\[[^\]]*\]\s*", "", title)
             title = re.sub(r"~~$", "", title)
+            # Strip trailing ticket reference like "(OBS-508)"
+            title = re.sub(r"\s*\([A-Z]+-\d+\)\s*$", "", title)
             title = title.strip()
 
             if not title:
@@ -644,7 +653,7 @@ class ReportParserPre20250520(ReportParser):
                             metadata_list = token
                             break
 
-                if header_text.startswith("Postmortem Action Items"):
+                if "action items" in header_text.lower():
                     while tokens:
                         token = tokens.pop(0)
                         if isinstance(token, marko.block.List):

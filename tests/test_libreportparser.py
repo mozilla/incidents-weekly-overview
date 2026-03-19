@@ -178,6 +178,33 @@ def test_parse_markdown_bravoservice():
 
 
 # ---------------------------------------------------------------------------
+# ReportParser20250520.action_items_table_to_report
+# ---------------------------------------------------------------------------
+
+
+def test_action_items_table_mailto_dropped():
+    """Action items whose ticket cell contains only a mailto URL are dropped."""
+    md = """\
+# Incident: *test*
+
+| **Jira Ticket/Bug Number** | [IIM-1](https://example.com/browse/IIM-1) |
+| :---- | :---- |
+| **Current Status** | Resolved |
+| **Issue detected via** | Manual/Human |
+
+# Postmortem Action Items
+
+| Jira Ticket + Status | Ticket Title |
+| :---- | :---- |
+| [[WORK-1](https://example.com/browse/WORK-1)] | Keep this one |
+| [Bianca](mailto:bianca@example.net) | Drop this one |
+"""
+    data = parse_markdown(md)
+    assert len(data.action_items) == 1
+    assert data.action_items[0].url == "https://example.com/browse/WORK-1"
+
+
+# ---------------------------------------------------------------------------
 # ReportParser20250520.metadata_table_to_report
 # ---------------------------------------------------------------------------
 
@@ -488,6 +515,37 @@ def test_parse_markdown_deltaservice_action_items():
     for item in data.action_items[3:]:
         assert item.url is None
         assert item.status == "OPEN"
+
+
+def test_parse_markdown_symbols():
+    """Full document parse of symbols-style pre-20250520 report."""
+    md = (REPORTS_DIR / "incident_symbols_pre20250520.md").read_text()
+    data = parse_markdown(md)
+    assert data.key == "IIM-17"
+    assert data.jira_url == "https://example.net/browse/IIM-17"
+    assert data.summary == "symbols outage with spiking load balancer 502s"
+    assert data.severity == "S4"
+    assert data.status == "Resolved"
+    assert data.impact_start == "2025-02-21 16:41"
+    assert data.mitigated == "2025-02-21 18:15"
+
+
+def test_parse_markdown_symbols_action_items():
+    """Action items from symbols-style report: trailing ticket ref stripped."""
+    md = (REPORTS_DIR / "incident_symbols_pre20250520.md").read_text()
+    data = parse_markdown(md)
+    assert data.action_items is not None
+    assert len(data.action_items) == 3
+    assert data.action_items[0].url == "https://example.net/browse/OBS-508"
+    assert data.action_items[0].status == "OPEN"
+    assert data.action_items[0].title == (
+        "Come up with a process to iterate on Helm chart changes in stage that does not"
+        " involve locally running Helm. This will make the process less error-prone and"
+        " more auditable. It's probably enough to add a parameter to select a different"
+        " webservices-infra branch in our manual deployment playbooks."
+    )
+    assert data.action_items[1].url == "https://example.net/browse/OBS-507"
+    assert data.action_items[2].url == "https://example.net/browse/OBS-509"
 
 
 def test_parse_markdown_selects_pre20250520_parser():

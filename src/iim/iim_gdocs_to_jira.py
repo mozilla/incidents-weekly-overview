@@ -75,7 +75,7 @@ def generate_metadata_diff(
     # the jira incident issue. after that, we pull it from the incident
     # report field
     summary = report_data.summary or "unknown"
-    declare_date = report_data.declare_date or jira_data.declare_date
+    declare_date = report_data.declare_date or jira_data.declare_date or "unknown"
     if declare_date and not summary.endswith(f" ({declare_date})"):
         summary = f"{summary} ({declare_date})"
     diff.append(
@@ -87,39 +87,40 @@ def generate_metadata_diff(
         )
     )
 
-    # NOTE(willkg): if the update is to set this field to None, then set it
-    # to whatever Jira has already
+    if report_data.template_version == "2026.03.12":
+        new_declare_date = report_data.declare_date
+    else:
+        new_declare_date = report_data.declare_date or jira_data.declare_date
     diff.append(
         Diff(
             name="declare date",
             old_value=jira_data.declare_date,
-            new_value=report_data.declare_date or jira_data.declare_date,
-            field_value={
-                to_jira_field("declare_date"): report_data.declare_date
-                or jira_data.declare_date
-            },
+            new_value=new_declare_date,
+            field_value={to_jira_field("declare_date"): new_declare_date},
         )
     )
+    if report_data.template_version == "2026.03.12":
+        new_declared = report_data.declared
+    else:
+        new_declared = report_data.declared or jira_data.declared
     diff.append(
         Diff(
             name="time declared (ts)",
             old_value=jira_data.declared,
-            new_value=report_data.declared or jira_data.declared,
-            field_value={
-                to_jira_field("declared"): report_data.declared or jira_data.declared
-            },
+            new_value=new_declared,
+            field_value={to_jira_field("declared"): new_declared},
         )
     )
+    if report_data.template_version == "2026.03.12":
+        new_entities = report_data.entities
+    else:
+        new_entities = report_data.entities or jira_data.entities
     diff.append(
         Diff(
             name="impacted entities",
             old_value=jira_data.entities,
-            new_value=report_data.entities or jira_data.entities,
-            field_value={
-                to_jira_field("impacted_entities"): (
-                    report_data.entities or jira_data.entities
-                )
-            },
+            new_value=new_entities,
+            field_value={to_jira_field("impacted_entities"): new_entities},
         )
     )
 
@@ -136,16 +137,20 @@ def generate_metadata_diff(
             },
         )
     )
+    if report_data.template_version in ("2025.05.20", "2026.03.12"):
+        new_detection_method = report_data.detection_method
+    else:
+        new_detection_method = (
+            report_data.detection_method or jira_data.detection_method
+        )
     diff.append(
         Diff(
             name="detection_method",
             old_value=jira_data.detection_method,
-            new_value=report_data.detection_method,
+            new_value=new_detection_method,
             field_value={
-                to_jira_field("detection_method"): {
-                    "value": report_data.detection_method
-                }
-                if report_data.detection_method
+                to_jira_field("detection_method"): {"value": new_detection_method}
+                if new_detection_method
                 else None
             },
         )

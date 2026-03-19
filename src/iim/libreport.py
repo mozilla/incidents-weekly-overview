@@ -90,7 +90,7 @@ class ActionItem:
         if jira_key(self.url):
             return jira_key(self.url)
         # Essence of a non-jira action items is "[status] url: title"
-        return f"action: [{self.status}] {self.url} {self.title}"
+        return f"action: [{self.status}] {self.url} {self.title}"[:254]
 
     @classmethod
     def from_essence(cls, url, title, jira_id=None):
