@@ -516,7 +516,9 @@ class ReportParserPre20250520(ReportParser):
 
     METADATA_LABEL_TO_FIELD = {
         "incident severity": "severity",
+        "jira ticket": "issues",
         "incident jira ticket": "issues",
+        "issue detected via": "detection_method",
         "start of impact": "impact_start",
         "time of first impact": "impact_start",
         "time alerted": "alerted",
@@ -586,12 +588,75 @@ class ReportParserPre20250520(ReportParser):
         else:
             report.severity = None
 
+        # Detection method
+        detection = md_data.get("detection_method", "")
+        if "Manual/Human" in detection or detection.lower() == "manual":
+            report.detection_method = "Manual"
+        elif "Automated" in detection:
+            report.detection_method = "Automation"
+
         report.impact_start = extract_timestamp(md_data.get("impact_start"))
         report.alerted = extract_timestamp(md_data.get("alerted"))
         report.acknowledged = extract_timestamp(md_data.get("acknowledged"))
         report.responded = extract_timestamp(md_data.get("responded"))
         report.mitigated = extract_timestamp(md_data.get("mitigated"))
         report.resolved = extract_timestamp(md_data.get("resolved"))
+
+    def _extract_action_item_status(self, cell_items):
+        """Extract status string from action item ticket cell."""
+        cell_text = _cell_text(cell_items)
+
+        if "Status:" in cell_text:
+            return cell_text.split("Status:", 1)[1].strip().upper()
+
+        parts = []
+        for item in cell_items:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, (marko.inline.RawText, marko.inline.Literal)):
+                parts.append(item.children)
+            elif isinstance(item, marko.inline.Link):
+                pass  # skip link content
+            elif hasattr(item, "children") and isinstance(item.children, list):
+                parts.append(_cell_text(item.children))
+
+        non_link_text = re.sub(r"[\[\]\s]+", " ", "".join(parts)).strip() or "unknown"
+        return non_link_text.upper()
+
+    def action_items_table_to_report(self, report: IncidentReport, table_token):
+        """Parse action items table token and update IncidentReport report."""
+        if table_token is None:
+            return
+
+        report.action_items = []
+        for row_items in _table_to_rows(table_token):
+            cells = _row_to_cells(row_items)
+            if len(cells) < 3:
+                continue
+
+            ticket_cell = cells[1]
+            ticket_text = _cell_text(ticket_cell).strip()
+
+            title_cell = cells[2]
+            title = _cell_text(title_cell).strip()
+            if title:
+                title = title.splitlines()[0]
+
+            if not title and not ticket_text:
+                continue
+            if re.match(r"^[\s:\-]+$", ticket_text):
+                continue
+            if "jira ticket" in ticket_text.lower() or "ticket title" in title.lower():
+                continue
+
+            url = next(_cell_link_dests(ticket_cell), None)
+            if url and url.startswith("mailto:"):
+                continue
+            if url == "https://mozilla-hub.atlassian.net/browse/":
+                continue
+            status = self._extract_action_item_status(ticket_cell)
+
+            report.action_items.append(ActionItem(url=url, status=status, title=title))
 
     def action_items_list_to_report(self, report: IncidentReport, list_token):
         """Parse action items bullet list and update IncidentReport."""
@@ -640,6 +705,7 @@ class ReportParserPre20250520(ReportParser):
 
         metadata_list = None
         action_items_list = None
+        action_items_table = None
 
         while tokens:
             token = tokens.pop(0)
@@ -656,12 +722,21 @@ class ReportParserPre20250520(ReportParser):
                 if "action items" in header_text.lower():
                     while tokens:
                         token = tokens.pop(0)
-                        if isinstance(token, marko.block.List):
+                        if is_header(token):
+                            tokens.insert(0, token)
+                            break
+                        elif isinstance(token, marko.block.List):
                             action_items_list = token
+                            break
+                        elif is_table(token):
+                            action_items_table = token
                             break
 
         self.metadata_list_to_report(report, metadata_list)
-        self.action_items_list_to_report(report, action_items_list)
+        if action_items_list is not None:
+            self.action_items_list_to_report(report, action_items_list)
+        elif action_items_table is not None:
+            self.action_items_table_to_report(report, action_items_table)
         return report
 
 

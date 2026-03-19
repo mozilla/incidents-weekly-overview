@@ -172,14 +172,14 @@ REPORTS_DIR = Path(__file__).parent / "data"
 
 
 def test_read_markdown_incident_at_top():
-    path = REPORTS_DIR / "2026_03_13_test_report_v20260312.md"
+    path = REPORTS_DIR / "20260312" / "incident_testreport.md"
     content = read_markdown(str(path))
     assert content == path.read_text()
 
 
 def test_read_markdown_incident_not_at_top():
     # incident_service_alpha has instruction text before the # Incident heading
-    path = REPORTS_DIR / "incident_service_alpha_v20250520.md"
+    path = REPORTS_DIR / "20250520" / "incident_service_alpha.md"
     content = read_markdown(str(path))
     assert content == path.read_text()
 
