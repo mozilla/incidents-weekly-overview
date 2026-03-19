@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import re
+from urllib.parse import urlsplit
 
 import marko
 import marko.block
@@ -17,27 +18,28 @@ JIRA_ISSUE_RE = re.compile(r"(IIM\-\d+)")
 JIRA_URL_RE = re.compile(r"(https://\S+?/browse/IIM\-\d+)")
 
 
-class NoJiraURLError(Exception):
+class NoJiraIIMURLError(Exception):
     pass
 
 
-class NoJiraKeyError(Exception):
-    pass
-
-
-def extract_jira_url(value):
+def extract_jira_iim_url(value: str) -> str:
     """Extract Jira URL from markdown link or plain URL"""
     url_match = JIRA_URL_RE.search(value)
     if url_match:
         return url_match[1]
-    raise NoJiraURLError(f"{value!r} has no jira url")
+    raise NoJiraIIMURLError(f"{value!r} has no jira url")
 
 
-def extract_jira_key(url):
-    key_match = JIRA_ISSUE_RE.search(url)
-    if key_match:
-        return key_match[0]
-    raise NoJiraKeyError(f"{url!r} has no jira issue key")
+class NoJiraIIMKeyError(Exception):
+    pass
+
+
+def extract_jira_key(url: str) -> str:
+    parts = urlsplit(url)
+    if not parts.path.startswith("/browse/"):
+        raise NoJiraIIMKeyError(f"{url!r} has no jira issue key")
+
+    return parts.path.split("/")[-1]
 
 
 def extract_timestamp(value):
@@ -65,6 +67,7 @@ METADATA_LABEL_TO_FIELD = {
     "time declared": "declared",
     "time of first impact": "impact_start",
     "time alerted": "alerted",
+    "time acknowledge": "acknowledged",
     "time acknowledged": "acknowledged",
     "time responded/engaged": "responded",
     "time mitigated (repaired)": "mitigated",
@@ -208,16 +211,16 @@ def metadata_table_to_report(report: IncidentReport, table_token):
             iim_url = None
             for dest in _cell_link_dests(value_cell):
                 try:
-                    iim_url = extract_jira_url(dest)
+                    iim_url = extract_jira_iim_url(dest)
                     break
-                except NoJiraURLError:
+                except NoJiraIIMURLError:
                     continue
             md_table[field] = iim_url or _cell_text(value_cell).strip()
         else:
             md_table[field] = _cell_text(value_cell)
 
     # Jira URL and key
-    report.jira_url = extract_jira_url(md_table.get("issues", ""))
+    report.jira_url = extract_jira_iim_url(md_table.get("issues", ""))
     report.key = extract_jira_key(report.jira_url)
 
     # Status
@@ -313,10 +316,13 @@ def action_items_table_to_report(report: IncidentReport, table_token):
             continue
 
         ticket_cell = cells[1]
-        title_cell = cells[2]
-
-        title = _cell_text(title_cell).strip()
         ticket_text = _cell_text(ticket_cell).strip()
+
+        # Title is the first line of non-empty title cell
+        title_cell = cells[2]
+        title = _cell_text(title_cell).strip()
+        if title:
+            title = title.splitlines()[0]
 
         # Skip header and separator rows
         if not title and not ticket_text:
