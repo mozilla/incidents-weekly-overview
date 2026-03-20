@@ -89,10 +89,13 @@
     color: #1f2937;
   }
 
+  div {
+    margin: 4px 0;
+  }
+
   span.summary {
     font-size: 14px;
     display: inline-block;
-    padding-bottom: 5px;
   }
 
   span.key {
@@ -100,7 +103,6 @@
   }
 
   span.entity {
-    /* font-weight: 700; */
     padding: 0px 6px;
     border: 1px solid transparent;
     white-space: nowrap;
@@ -219,17 +221,25 @@
           <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
           <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
           <td>
-            <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span><br>
-            <span class="key">Entities:</span>
-            {% for entity in item.entities.split(',') %}
-               <span class="entity">{{ entity }}</span>
-            {% endfor %}
-            &mdash;
-            <span class="key">TT-DEC:</span> {{ item.tt_dec }}
-            &mdash;
-            <span class="key">TT-ALERT:</span> {{ item.tt_alert }}
-            &mdash;
-            <span class="key">TT-MIT:</span> {{ item.tt_mit }}
+            <div>
+              <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
+            </div>
+            <div>
+              <span class="key">Age:</span> {{ item.age | humanize_timedelta }}
+              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
+              &mdash;
+              <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+            </div>
+            <div>
+              <span class="key">Entities:</span>
+              {% for entity in item.entities.split(',') %}
+                 <span class="entity">{{ entity }}</span>
+              {% endfor %}
+            </div>
           </td>
         </tr>
       {% endfor %}
@@ -258,17 +268,25 @@
           <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
           <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
           <td>
-            <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span><br>
-            <span class="key">Entities:</span>
-            {% for entity in item.entities.split(',') %}
-               <span class="entity">{{ entity }}</span>
-            {% endfor %}
-            &mdash;
-            <span class="key">TT-DEC:</span> {{ item.tt_dec }}
-            &mdash;
-            <span class="key">TT-ALERT:</span> {{ item.tt_alert }}
-            &mdash;
-            <span class="key">TT-MIT:</span> {{ item.tt_mit }}
+            <div>
+              <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
+            </div>
+            <div>
+              <span class="key">Age:</span> {{ item.age | humanize_timedelta }}
+              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
+              &mdash;
+              <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+            </div>
+            <div>
+              <span class="key">Entities:</span>
+              {% for entity in item.entities.split(',') %}
+                <span class="entity">{{ entity }}</span>
+              {% endfor %}
+            </div>
           </td>
         </tr>
       {% endfor %}
@@ -279,6 +297,114 @@
   {% else %}
     <p>
       There are no active incidents.
+    </p>
+  {% endif %}
+
+  <h1>Dormant incidents ({{ dormant_incidents | length }})</h1>
+  {% if dormant_incidents %}
+    <table class="incidents">
+      <tr>
+        <th>Jira</th>
+        <th>Severity</th>
+        <th>Status</th>
+        <th>Summary</th>
+      </tr>
+      {% for item in dormant_incidents | sort(attribute="severity") %}
+        <tr class="row-{{ loop.cycle('odd', 'even') }}">
+          <td><a href="{{ item['jira_url'] }}">{{ item['key'] }}</a></td>
+          <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
+          <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
+          <td>
+            <div>
+              <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
+            </div>
+            <div>
+              <span class="key">Age:</span> {{ item.age | humanize_timedelta }}
+              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
+              &mdash;
+              <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+            </div>
+            <div>
+              <span class="key">Entities:</span>
+              {% for entity in item.entities.split(',') %}
+                 <span class="entity">{{ entity }}</span>
+              {% endfor %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+    <p>
+      <a href="{{ dormant_incidents_link }}">See these incidents in Jira</a>
+    </p>
+  {% else %}
+    <p>
+      There are no active (dormant) incidents.
+    </p>
+  {% endif %}
+
+  <h1>Recently resolved incidents in the last 4 weeks ({{ recently_resolved | length }})</h1>
+  {% if recently_resolved %}
+    <table class="incidents">
+      <tr>
+        <th>Jira</th>
+        <th>Severity</th>
+        <th>Status</th>
+        <th>Summary</th>
+      </tr>
+      {% for item in recently_resolved | sort(attribute="resolved", reverse=true) %}
+        <tr class="row-{{ loop.cycle('odd', 'even') }}">
+          <td><a href="{{ item['jira_url'] }}">{{ item['key'] }}</a></td>
+          <td><span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span></td>
+          <td><span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span></td>
+          <td>
+            <div>
+              <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
+            </div>
+            <div>
+              <span class="key">Age:</span> {{ item.age | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-RES:</span> {{ item.tt_resolved | humanize_timedelta }}
+            </div>
+            <div>
+              <span class="key">Entities:</span>
+              {% for entity in item.entities.split(',') %}
+                 <span class="entity">{{ entity }}</span>
+              {% endfor %}
+            </div>
+            <div>
+              <span class="key">Resolved:</span> {{ item.resolved }}
+            </div>
+            <div>
+              {% set action_items = item.action_items or [] %}
+              <span class="key">Action items:</span> {{ action_items | length }} total
+              {% if action_items %}
+                &mdash;
+                {% for group in action_items | groupby('status') %}
+                  {{ group.grouper }}: {{ group.list | length }}{% if not loop.last %},{% endif %}
+                {% endfor %}
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+    <p>
+      <a href="{{ recently_resolved_link }}">See these incidents in Jira</a>
+    </p>
+  {% else %}
+    <p>
+      There were no recently resolved incidents.
     </p>
   {% endif %}
 

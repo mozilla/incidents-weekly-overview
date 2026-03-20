@@ -8,6 +8,7 @@ Computes a weekly report for incidents.
 
 import os
 from datetime import timedelta
+from typing import Optional
 
 import arrow
 import click
@@ -28,7 +29,10 @@ OVERVIEWS_DIR = "incident_overviews"
 load_dotenv()
 
 
-def humanize_timedelta(td: timedelta) -> str:
+def humanize_timedelta(td: Optional[timedelta]) -> str:
+    if td is None:
+        return "?"
+
     total_seconds = int(td.total_seconds())
     sign = "-" if total_seconds < 0 else ""
     total_seconds = abs(total_seconds)
@@ -83,46 +87,6 @@ def iim_weekly_report(ctx):
         for incident in issue_data
     ]
 
-    # Calculate incident outage time
-    now = arrow.now()
-    for incident in incidents:
-        timings = {
-            "tt-dec": "?",
-            "tt-alert": "?",
-            "tt-mit": "?",
-        }
-        start_ts = incident.impact_start or incident.detected
-        if not start_ts:
-            incident.tt_dec = timings["tt-dec"]
-            incident.tt_alert = timings["tt-alert"]
-            incident.tt_mit = timings["tt-mit"]
-            continue
-
-        # NOTE(willkg): We don't have good declared data prior to September
-        # 15th, 2025, so don't calculate it if before that date.
-        if incident.declared and incident.declared > "2025-09-15":
-            end_ts = arrow.get(incident.declared)
-            timings["tt-dec"] = humanize_timedelta(end_ts - arrow.get(start_ts))
-
-        # NOTE(willkg): Older incidents had "detected" data and may not
-        # have had "alerted" data.
-        alerted = incident.alerted or incident.detected
-        if alerted:
-            end_ts = arrow.get(alerted)
-            timings["tt-alert"] = humanize_timedelta(end_ts - arrow.get(start_ts))
-
-        if incident.mitigated:
-            end_ts = arrow.get(incident.mitigated)
-            timings["tt-mit"] = humanize_timedelta(end_ts - arrow.get(start_ts))
-        else:
-            timings["tt-mit"] = (
-                humanize_timedelta(now - arrow.get(start_ts)) + " (ongoing)"
-            )
-
-        incident.tt_dec = timings["tt-dec"]
-        incident.tt_alert = timings["tt-alert"]
-        incident.tt_mit = timings["tt-mit"]
-
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     last_friday = (
         arrow.now().shift(weeks=-1).floor("week").shift(days=4).format("YYYY-MM-DD")
@@ -144,13 +108,43 @@ def iim_weekly_report(ctx):
     for item in new_incidents:
         severity_breakdown[item.severity] = severity_breakdown.get(item.severity, 0) + 1
 
+    three_months_ago = arrow.now().shift(months=-3).format("YYYY-MM-DD")
     active_incidents = [
-        incident for incident in incidents if incident.status != "Resolved"
+        incident
+        for incident in incidents
+        if (
+            incident.status != "Resolved"
+            and incident.declare_date is not None
+            and incident.declare_date >= three_months_ago
+        )
+    ]
+    dormant_incidents = [
+        incident
+        for incident in incidents
+        if (
+            incident.status != "Resolved"
+            and (
+                incident.declare_date is None
+                or incident.declare_date < three_months_ago
+            )
+        )
+    ]
+
+    four_weeks_ago = arrow.now().shift(weeks=-4).format("YYYY-MM-DD")
+    recently_resolved = [
+        incident
+        for incident in incidents
+        if (
+            incident.status == "Resolved"
+            and incident.resolved is not None
+            and incident.resolved[:10] >= four_weeks_ago
+        )
     ]
 
     env = Environment(
         loader=FileSystemLoader("templates"), autoescape=select_autoescape()
     )
+    env.filters["humanize_timedelta"] = humanize_timedelta
 
     template = env.get_template("incident_overview.html")
     html = template.render(
@@ -171,6 +165,16 @@ def iim_weekly_report(ctx):
         active_incidents_link=generate_jira_link(
             jira_url=jira_client.base_url,
             incident_keys=[item.key for item in active_incidents if item.key],
+        ),
+        dormant_incidents=dormant_incidents,
+        dormant_incidents_link=generate_jira_link(
+            jira_url=jira_client.base_url,
+            incident_keys=[item.key for item in dormant_incidents if item.key],
+        ),
+        recently_resolved=recently_resolved,
+        recently_resolved_link=generate_jira_link(
+            jira_url=jira_client.base_url,
+            incident_keys=[item.key for item in recently_resolved if item.key],
         ),
     )
     inliner = css_inline.CSSInliner()
