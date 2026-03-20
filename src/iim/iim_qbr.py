@@ -9,6 +9,7 @@ specified quarter.
 
 import csv
 import dataclasses
+import json
 import os
 import statistics
 
@@ -24,30 +25,6 @@ from iim.libjira import JiraAPI, fix_jira_incident_data
 load_dotenv()
 
 
-def humanize(total_minutes: int) -> str:
-    sign = "-" if total_minutes < 0 else ""
-    total_seconds = int(abs(total_minutes) * 60)
-
-    days, remainder = divmod(total_seconds, 86400)
-    hours, remainder = divmod(remainder, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    parts = []
-    if days:
-        parts.append(f"{days:,}d")
-    if hours:
-        parts.append(f"{hours:,}h")
-    if minutes:
-        parts.append(f"{minutes:,}m")
-    if seconds or not parts:
-        parts.append(f"{seconds:,}s")
-
-    # Only take the two most significant parts
-    parts = parts[:2]
-
-    return sign + " ".join(parts)
-
-
 @dataclasses.dataclass
 class Stats:
     total: int = 0
@@ -59,11 +36,11 @@ class Stats:
     entities: set = dataclasses.field(default_factory=set)
     number_reviewed: int = 0
     s1s2_reviewed: int = 0
+    s1s2_incidents: int = 0
 
     @property
     def s1s2_reviewed_pct(self):
-        total = len(self.severity_breakdown.get("S1", [])) + len(self.severity_breakdown.get("S2", []))
-        return self.s1s2_reviewed / total * 100
+        return self.s1s2_reviewed / (self.s1 + self.s2) * 100
 
     @property
     def automation(self):
@@ -126,6 +103,46 @@ class Stats:
         return statistics.mean(self.tt_mitigated)
 
 
+def humanize(total_minutes: int) -> str:
+    sign = "-" if total_minutes < 0 else ""
+    total_seconds = int(abs(total_minutes) * 60)
+
+    days, remainder = divmod(total_seconds, 86400)
+    hours, remainder = divmod(remainder, 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+    if days:
+        parts.append(f"{days:,}d")
+    if hours:
+        parts.append(f"{hours:,}h")
+    if minutes:
+        parts.append(f"{minutes:,}m")
+    if seconds or not parts:
+        parts.append(f"{seconds:,}s")
+
+    # Only take the two most significant parts
+    parts = parts[:2]
+
+    return sign + " ".join(parts)
+
+
+def get_review_stats(stats, date_start, date_end, incidents, review_data):
+    reviewed_keys = set()
+    for review_date, keys in review_data.items():
+        if date_start <= arrow.get(review_date) <= date_end:
+            reviewed_keys.update(keys)
+
+    stats.number_reviewed = len(reviewed_keys)
+    s1s2_reviewed_keys = [
+        incident.key
+        for incident in incidents
+        if incident.key in reviewed_keys and incident.severity in ("S1", "S2")
+    ]
+    stats.s1s2_reviewed = len(s1s2_reviewed_keys)
+    return stats
+
+
 def get_stats(incidents):
     stats = Stats()
 
@@ -139,28 +156,43 @@ def get_stats(incidents):
         impact_start = arrow.get(incident.impact_start)
 
         # Drop extreme response times
-        if incident.responded and (arrow.get(incident.responded) - impact_start).total_seconds() > 1800000:
-            click.echo(f"Error: {incident.key} {incident.summary!r} has excessive response time: {arrow.get(incident.responded) - impact_start}")
+        if (
+            incident.responded
+            and (arrow.get(incident.responded) - impact_start).total_seconds() > 1800000
+        ):
+            click.echo(
+                f"Error: {incident.key} {incident.summary!r} has excessive response time: {arrow.get(incident.responded) - impact_start}"
+            )
             continue
 
         stats.severity_breakdown.setdefault(incident.severity, []).append(incident)
-        stats.detection_breakdown.setdefault(incident.detection_method, []).append(incident)
+        stats.detection_breakdown.setdefault(incident.detection_method, []).append(
+            incident
+        )
         alerted = incident.alerted or incident.detected
         if alerted is not None:
-            stats.tt_alerted.append((arrow.get(alerted) - impact_start).total_seconds() / 60)
+            stats.tt_alerted.append(
+                int((arrow.get(alerted) - impact_start).total_seconds() / 60)
+            )
 
         if incident.responded is not None:
-            stats.tt_responded.append((arrow.get(incident.responded) - impact_start).total_seconds() / 60)
+            stats.tt_responded.append(
+                int((arrow.get(incident.responded) - impact_start).total_seconds() / 60)
+            )
 
         if incident.mitigated is not None:
-            stats.tt_mitigated.append((arrow.get(incident.mitigated) - impact_start).total_seconds() / 60)
+            stats.tt_mitigated.append(
+                int((arrow.get(incident.mitigated) - impact_start).total_seconds() / 60)
+            )
 
         if incident.entities:
-            stats.entities.update([entity.lower().strip() for entity in incident.entities.split(", ")])
+            stats.entities.update(
+                [entity.lower().strip() for entity in incident.entities.split(", ")]
+            )
 
-    stats.number_reviewed = int(click.prompt("Number reviewed?: ").strip())
-    stats.s1s2_reviewed = int(click.prompt("Number S1/S2 reviewed?: ").strip())
-    stats.s1s2_incidents = len(stats.severity_breakdown.get("S1", [])) + len(stats.severity_breakdown.get("S2", []))
+    stats.s1s2_incidents = len(stats.severity_breakdown.get("S1", [])) + len(
+        stats.severity_breakdown.get("S2", [])
+    )
 
     return stats
 
@@ -241,6 +273,9 @@ def iim_qbr(ctx, period):
         date_start = arrow.get(f"{year}-01-01 00:00:00")
         date_end = arrow.get(f"{year}-12-31 23:59:59")
 
+    with open("monthly_review_data.json") as fp:
+        review_data = json.load(fp)
+
     jira_url = os.environ["JIRA_URL"].strip()
     username = os.environ["JIRA_USERNAME"].strip()
     token = os.environ["JIRA_TOKEN"].strip()
@@ -255,29 +290,51 @@ def iim_qbr(ctx, period):
 
     if period != "all":
         previous_incidents = [
-            incident for incident in incidents
-            if incident.declare_date and previous_start <= arrow.get(incident.declare_date) <= previous_end
+            incident
+            for incident in incidents
+            if incident.declare_date
+            and previous_start <= arrow.get(incident.declare_date) <= previous_end
         ]
-        incidents = [
-            incident for incident in incidents
-            if incident.declare_date and date_start <= arrow.get(incident.declare_date) <= date_end
+        these_incidents = [
+            incident
+            for incident in incidents
+            if incident.declare_date
+            and date_start <= arrow.get(incident.declare_date) <= date_end
         ]
 
     click.echo("Determining statistics data...")
 
     click.echo("Getting statistics...")
-    stats = get_stats(incidents)
+    stats = get_stats(these_incidents)
+    stats = get_review_stats(
+        stats=stats,
+        date_start=date_start,
+        date_end=date_end,
+        incidents=incidents,
+        review_data=review_data,
+    )
 
     if previous_start:
         click.echo("Getting statistics for previous period...")
         previous_stats = get_stats(previous_incidents)
+        previous_stats = get_review_stats(
+            stats=previous_stats,
+            date_start=previous_start,
+            date_end=previous_end,
+            incidents=incidents,
+            review_data=review_data,
+        )
 
     click.echo()
 
     if period == "all":
         click.echo("Looking at: all data")
     else:
-        click.echo(f"Looking at: {date_start.strftime('%Y-%m-%d')} to {date_end.strftime('%Y-%m-%d')}")
+        assert date_start is not None
+        assert date_end is not None
+        click.echo(
+            f"Looking at: {date_start.strftime('%Y-%m-%d')} to {date_end.strftime('%Y-%m-%d')}"
+        )
 
     click.echo()
 
@@ -300,6 +357,7 @@ def iim_qbr(ctx, period):
             )
 
     if previous_start:
+        assert previous_period is not None
         table.add_column("key")
         table.add_column(previous_period)
         table.add_column(period)
@@ -309,32 +367,32 @@ def iim_qbr(ctx, period):
             "Total incidents",
             str(previous_stats.total),
             str(stats.total),
-            f"{pct_change(previous_stats.total, stats.total):2.2f}%"
+            f"{pct_change(previous_stats.total, stats.total):2.2f}%",
         )
 
         table.add_row(
             "Severity: S1",
             f"{previous_stats.s1:<3}  {previous_stats.s1_pct:2.2f}%",
             f"{stats.s1:<3}  {stats.s1_pct:2.2f}%",
-            f"{pct_change(previous_stats.s1, stats.s1):2.2f}%"
+            f"{pct_change(previous_stats.s1, stats.s1):2.2f}%",
         )
         table.add_row(
             "Severity: S2",
             f"{previous_stats.s2:<3}  {previous_stats.s2_pct:2.2f}%",
             f"{stats.s2:<3}  {stats.s2_pct:2.2f}%",
-            f"{pct_change(previous_stats.s2, stats.s2):2.2f}%"
+            f"{pct_change(previous_stats.s2, stats.s2):2.2f}%",
         )
         table.add_row(
             "Severity: S3",
             f"{previous_stats.s3:<3}  {previous_stats.s3_pct:2.2f}%",
             f"{stats.s3:<3}  {stats.s3_pct:2.2f}%",
-            f"{pct_change(previous_stats.s3, stats.s3):2.2f}%"
+            f"{pct_change(previous_stats.s3, stats.s3):2.2f}%",
         )
         table.add_row(
             "Severity: S4",
             f"{previous_stats.s4:<3}  {previous_stats.s4_pct:2.2f}%",
             f"{stats.s4:<3}  {stats.s4_pct:2.2f}%",
-            f"{pct_change(previous_stats.s4, stats.s4):2.2f}%"
+            f"{pct_change(previous_stats.s4, stats.s4):2.2f}%",
         )
 
         table.add_row(
@@ -348,13 +406,13 @@ def iim_qbr(ctx, period):
             f"{previous_stats.s1s2_reviewed_pct:2.2f}%",
             f"{stats.s1s2_reviewed_pct:2.2f}%",
             f"{pct_change(previous_stats.s1s2_reviewed_pct, stats.s1s2_reviewed_pct):2.2f}%"
-            ""
+            "",
         )
         table.add_row(
             "Impacted entities",
             str(len(previous_stats.entities)),
             str(len(stats.entities)),
-            f"{pct_change(len(previous_stats.entities), len(stats.entities)):2.2f}%"
+            f"{pct_change(len(previous_stats.entities), len(stats.entities)):2.2f}%",
         )
 
         table.add_row(
@@ -399,10 +457,18 @@ def iim_qbr(ctx, period):
         table.add_row("Severity: S3", f"{stats.s3:<3}  {stats.s3_pct:2.2f}%")
         table.add_row("Severity: S4", f"{stats.s4:<3}  {stats.s4_pct:2.2f}%")
         table.add_row("Number reviewed", str(stats.number_reviewed))
-        table.add_row("Percent S1/S2 reviewed", f"{(stats.s1s2_reviewed / stats.s1s2_incidents) * 100:2.2f}%")
+        table.add_row(
+            "Percent S1/S2 reviewed",
+            f"{(stats.s1s2_reviewed / stats.s1s2_incidents) * 100:2.2f}%",
+        )
         table.add_row("Impacted entities", str(len(stats.entities)))
-        table.add_row("Detection by automation", f"{stats.automation} ({stats.automation_pct:2.2f}%)")
-        table.add_row("Detection by manual", f"{stats.manual} ({stats.manual_pct:2.2f}%)")
+        table.add_row(
+            "Detection by automation",
+            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
+        )
+        table.add_row(
+            "Detection by manual", f"{stats.manual} ({stats.manual_pct:2.2f}%)"
+        )
 
         table.add_row("MTT alerted", humanize(stats.mtt_alerted))
         table.add_row("MTT responded", humanize(stats.mtt_responded))
