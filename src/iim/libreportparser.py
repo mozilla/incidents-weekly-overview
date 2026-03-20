@@ -209,7 +209,6 @@ class ReportParser20250520(ReportParser):
         "jira ticket/bug number": "issues",
         "issue detected via": "detection_method",
         "current status": "status",
-        "time declared": "declared",
         "time of first impact": "impact_start",
         "time alerted": "alerted",
         "time acknowledge": "acknowledged",
@@ -297,10 +296,6 @@ class ReportParser20250520(ReportParser):
         report.responded = extract_timestamp(md_table.get("responded"))
         report.mitigated = extract_timestamp(md_table.get("mitigated"))
         report.resolved = extract_timestamp(md_table.get("resolved"))
-
-        # declare date isn't in the table--we derive it from declared
-        if report.declared:
-            report.declare_date = report.declared.split("T")[0]
 
         return report
 
@@ -506,7 +501,7 @@ class ReportParser20260312(ReportParser20250520):
 
         # declare date isn't in the table--we derive it from declared
         if report.declared:
-            report.declare_date = report.declared.split("T")[0]
+            report.declare_date = report.declared.split(" ")[0]
 
         return report
 
@@ -570,7 +565,7 @@ class ReportParserPre20250520(ReportParser):
         status = re.sub(r"[\[\]\\]+", "", md_data.get("status", "")).strip()
         if status.lower().startswith("mitigated"):
             report.status = "Mitigated"
-        elif status.lower().startswith(("resolved", "done")):
+        elif status.lower().startswith(("resolved", "done", "closed")):
             report.status = "Resolved"
         else:
             report.status = "In Progress"
@@ -665,7 +660,8 @@ class ReportParserPre20250520(ReportParser):
 
         report.action_items = []
         for item in list_token.children:
-            item_text = get_text(item, keep_links=False)
+            # Only use the first line — child list items appear after a LineBreak
+            item_text = get_text(item, keep_links=False).splitlines()[0]
 
             # Determine status from checkbox prefix
             if re.match(r"^\[x\]", item_text, re.IGNORECASE):

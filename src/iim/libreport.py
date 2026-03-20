@@ -3,8 +3,11 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 from dataclasses import dataclass
+from datetime import timedelta
 import re
 from typing import Any, Optional
+
+import arrow
 
 
 JIRA_KEY_RE = re.compile(r"https?://[^\s/]+/browse/([A-Z][A-Z0-9]+-\d+)")
@@ -134,10 +137,51 @@ class IncidentReport:
     action_items: Optional[list[ActionItem]] = None
     # incident report template version (e.g. "2026.03.12")
     template_version: Optional[str] = None
-    # computed timing fields populated by iim_weekly_overview
-    tt_dec: Optional[str] = None
-    tt_alert: Optional[str] = None
-    tt_mit: Optional[str] = None
+
+    @property
+    def age(self) -> Optional[timedelta]:
+        start_ts = self.impact_start or self.declared
+        if not start_ts:
+            return None
+        end_ts = arrow.get(self.resolved) if self.resolved else arrow.now()
+        return end_ts - arrow.get(start_ts)
+
+    @property
+    def tt_declared(self) -> Optional[timedelta]:
+        start_ts = self.impact_start or self.detected
+        if not self.declared or not self.declared > "2025-09-15" or not start_ts:
+            # NOTE(willkg): We don't have good declared data prior to September
+            # 15th, 2025, so don't calculate it if before that date.
+            return None
+        end_ts = arrow.get(self.declared)
+        return end_ts - arrow.get(start_ts)
+
+    @property
+    def tt_alerted(self) -> Optional[timedelta]:
+        start_ts = self.impact_start or self.detected
+        # NOTE(willkg): Older incidents had "detected" data and may not
+        # have had "alerted" data.
+        alerted = self.alerted or self.detected
+        if not start_ts or not alerted:
+            return None
+        end_ts = arrow.get(alerted)
+        return end_ts - arrow.get(start_ts)
+
+    @property
+    def tt_mitigated(self) -> Optional[timedelta]:
+        start_ts = self.impact_start or self.detected
+        if not start_ts or not self.mitigated:
+            return None
+        end_ts = arrow.get(self.mitigated)
+        return end_ts - arrow.get(start_ts)
+
+    @property
+    def tt_resolved(self) -> Optional[timedelta]:
+        start_ts = self.impact_start or self.detected
+        if not start_ts or not self.resolved:
+            return None
+        end_ts = arrow.get(self.resolved)
+        return end_ts - arrow.get(start_ts)
 
     @property
     def tracked_action_items(self):
