@@ -10,6 +10,7 @@ specified quarter.
 import csv
 import dataclasses
 import json
+from importlib.resources import files as resources_files
 import os
 import statistics
 
@@ -268,8 +269,9 @@ def iim_qbr(ctx, period):
         date_start = arrow.get(f"{year}-01-01 00:00:00")
         date_end = arrow.get(f"{year}-12-31 23:59:59")
 
-    with open("monthly_review_data.json") as fp:
-        review_data = json.load(fp)
+    review_data = json.loads(
+        (resources_files("iim") / "data" / "monthly_review_data.json").read_text()
+    )
 
     jira_url = os.environ["JIRA_URL"].strip()
     username = os.environ["JIRA_USERNAME"].strip()

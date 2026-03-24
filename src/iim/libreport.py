@@ -4,10 +4,17 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
+import json
+from importlib.resources import files as resources_files
 import re
 from typing import Any, Optional
 
 import arrow
+
+
+ENTITY_BUCKET: dict[str, str] = json.loads(
+    (resources_files("iim") / "data" / "service_product_entity_bucket.json").read_text()
+)
 
 
 JIRA_KEY_RE = re.compile(r"https?://[^\s/]+/browse/([A-Z][A-Z0-9]+-\d+)")
@@ -138,6 +145,15 @@ class IncidentReport:
     action_items: Optional[list[ActionItem]] = None
     # incident report template version (e.g. "2026.03.12")
     template_version: Optional[str] = None
+
+    @property
+    def entity_bucket(self) -> str:
+        entities = self.entities or "unknown"
+        for item in entities.split(", "):
+            if ENTITY_BUCKET.get(item, "service") == "service":
+                return "service"
+
+        return "product"
 
     @property
     def age(self) -> Optional[timedelta]:

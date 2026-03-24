@@ -72,8 +72,17 @@ def to_jira_field(field):
     return INCIDENT_REPORT_TO_JIRA_FIELD.get(field)
 
 
+def normalize_entities(value):
+    value = value or "unknown"
+    value = [item.strip() for item in value.strip().split(", ")]
+
+    return ", ".join(value)
+
+
 def fix_jira_incident_data(
-    jira_url: str, incident: dict, remotelinks: Optional[list[dict]] = None
+    jira_url: str,
+    incident: dict,
+    remotelinks: Optional[list[dict]] = None,
 ) -> IncidentReport:
     action_items = []
 
@@ -112,7 +121,9 @@ def fix_jira_incident_data(
         severity=glom(
             incident, "fields.customfield_10319.value", default="undetermined"
         ),
-        entities=glom(incident, "fields.customfield_18555", default="unknown"),
+        entities=normalize_entities(
+            glom(incident, "fields.customfield_18555", default=None)
+        ),
         report_url=extract_doc(incident["fields"]["description"]),
         declare_date=glom(incident, "fields.customfield_15087", default=None),
         detection_method=glom(incident, "fields.customfield_12881.value", default=None),
@@ -144,10 +155,15 @@ def generate_jira_link(jira_url: str, incident_keys: list[str]):
 
 
 class JiraAPI:
-    def __init__(self, base_url: str, username: str, password: str):
+    def __init__(
+        self,
+        base_url: str,
+        username: str,
+        password: str,
+    ):
         self.base_url = base_url.rstrip("/")
-        self._auth = HTTPBasicAuth(username, password)
-        self._headers = {"Accept": "application/json"}
+        self.auth = HTTPBasicAuth(username, password)
+        self.headers = {"Accept": "application/json"}
 
     def get_all_issues_for_project(
         self,
@@ -180,9 +196,9 @@ class JiraAPI:
 
             resp = requests.get(
                 f"{self.base_url}/rest/api/3/search/jql",
-                headers=self._headers,
+                headers=self.headers,
                 params=params,
-                auth=self._auth,
+                auth=self.auth,
                 timeout=30,
             )
             resp.raise_for_status()
@@ -208,7 +224,7 @@ class JiraAPI:
         Fetches remote links (external URL links) for a Jira issue.
         """
         url = f"{self.base_url}/rest/api/3/issue/{issue_key}/remotelink"
-        response = requests.get(url, auth=self._auth, headers=self._headers, timeout=30)
+        response = requests.get(url, auth=self.auth, headers=self.headers, timeout=30)
         response.raise_for_status()
         return response.json()
 
@@ -217,7 +233,7 @@ class JiraAPI:
         Requests Jira incident issue data.
         """
         url = f"{self.base_url}/rest/api/3/issue/{issue_key}"
-        response = requests.get(url, auth=self._auth, headers=self._headers, timeout=30)
+        response = requests.get(url, auth=self.auth, headers=self.headers, timeout=30)
         response.raise_for_status()
         return response.json()
 
@@ -228,7 +244,9 @@ class JiraAPI:
         data = self.get_issue(issue_key)
         remotelinks = self.get_issue_remotelinks(issue_key)
         return fix_jira_incident_data(
-            jira_url=self.base_url, incident=data, remotelinks=remotelinks
+            jira_url=self.base_url,
+            incident=data,
+            remotelinks=remotelinks,
         )
 
     def update_issue_status(self, issue_key: str, new_status: str) -> None:
@@ -238,10 +256,10 @@ class JiraAPI:
         :raises requests.HTTPError: if the request fails
         """
         url = f"{self.base_url}/rest/api/3/issue/{issue_key}/transitions"
-        headers = {**self._headers, "Content-Type": "application/json"}
+        headers = {**self.headers, "Content-Type": "application/json"}
 
         # Step 1: Get available transitions
-        response = requests.get(url, headers=headers, auth=self._auth, timeout=30)
+        response = requests.get(url, headers=headers, auth=self.auth, timeout=30)
         if response.status_code not in (200, 204):
             response.raise_for_status()
 
@@ -264,7 +282,7 @@ class JiraAPI:
         # Step 3: Perform transition
         payload = {"transition": {"id": transition_id}}
         response = requests.post(
-            url, headers=headers, json=payload, auth=self._auth, timeout=30
+            url, headers=headers, json=payload, auth=self.auth, timeout=30
         )
         if response.status_code not in (200, 204):
             print(response.json())
@@ -277,11 +295,11 @@ class JiraAPI:
         :raises requests.HTTPError: if the request fails
         """
         url = f"{self.base_url}/rest/api/3/issue/{issue_key}"
-        headers = {**self._headers, "Content-Type": "application/json"}
+        headers = {**self.headers, "Content-Type": "application/json"}
         payload = {"fields": updated_fields}
 
         response = requests.put(
-            url, auth=self._auth, headers=headers, json=payload, timeout=30
+            url, auth=self.auth, headers=headers, json=payload, timeout=30
         )
         # Jira returns 204 No Content on success
         if response.status_code not in (200, 204):
@@ -291,14 +309,14 @@ class JiraAPI:
     def add_issue_link(self, incident_key: str, linked_issue_key: str) -> None:
         """Create an 'Action item' issue link from incident_key to linked_issue_key."""
         url = f"{self.base_url}/rest/api/3/issueLink"
-        headers = {**self._headers, "Content-Type": "application/json"}
+        headers = {**self.headers, "Content-Type": "application/json"}
         payload = {
             "type": {"name": "Action item"},
             "inwardIssue": {"key": incident_key},
             "outwardIssue": {"key": linked_issue_key},
         }
         response = requests.post(
-            url, auth=self._auth, headers=headers, json=payload, timeout=30
+            url, auth=self.auth, headers=headers, json=payload, timeout=30
         )
         # NOTE(willkg): Ignore 401 which occurs when we're trying to link to an
         # issue in an archived space.
@@ -313,7 +331,7 @@ class JiraAPI:
         """Delete a Jira issue link by its ID."""
         url = f"{self.base_url}/rest/api/3/issueLink/{link_id}"
         response = requests.delete(
-            url, auth=self._auth, headers=self._headers, timeout=30
+            url, auth=self.auth, headers=self.headers, timeout=30
         )
         if response.status_code not in (200, 204):
             print(response.json())
@@ -322,7 +340,7 @@ class JiraAPI:
     def add_remote_link(self, incident_key: str, action_item: ActionItem) -> None:
         """Create a remote link on a Jira issue for a non-Jira action item."""
         url = f"{self.base_url}/rest/api/3/issue/{incident_key}/remotelink"
-        headers = {**self._headers, "Content-Type": "application/json"}
+        headers = {**self.headers, "Content-Type": "application/json"}
         payload = {
             "object": {
                 "url": action_item.url,
@@ -330,7 +348,7 @@ class JiraAPI:
             }
         }
         response = requests.post(
-            url, auth=self._auth, headers=headers, json=payload, timeout=30
+            url, auth=self.auth, headers=headers, json=payload, timeout=30
         )
         if response.status_code not in (200, 201):
             print(response.json())
@@ -340,7 +358,7 @@ class JiraAPI:
         """Delete a remote link from a Jira issue using the link ID on the action item."""
         url = f"{self.base_url}/rest/api/3/issue/{incident_key}/remotelink/{action_item.jira_id}"
         response = requests.delete(
-            url, auth=self._auth, headers=self._headers, timeout=30
+            url, auth=self.auth, headers=self.headers, timeout=30
         )
         if response.status_code not in (200, 204):
             print(response.json())
