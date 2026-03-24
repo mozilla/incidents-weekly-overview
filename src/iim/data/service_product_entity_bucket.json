@@ -1,0 +1,6 @@
+{
+  "fenix": "product",
+  "firefox": "product",
+  "firefox-ios": "product",
+  "unknown": "service"
+}
