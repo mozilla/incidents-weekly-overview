@@ -40,8 +40,11 @@ class Stats:
     s1s2_incidents: int = 0
 
     @property
-    def s1s2_reviewed_pct(self):
-        return self.s1s2_reviewed / (self.s1 + self.s2) * 100
+    def s1s2_reviewed_pct(self) -> float:
+        all_s1s2 = self.s1 + self.s2
+        if all_s1s2 > 0:
+            return self.s1s2_reviewed / (self.s1 + self.s2) * 100
+        return 0.0
 
     @property
     def automation(self):
@@ -223,6 +226,124 @@ def pct_change(a, b):
     return (b - a) / a * 100
 
 
+def build_stats_table(title, stats, period, previous_stats=None, previous_period=None):
+    table = Table(title=title)
+
+    if previous_stats and previous_period:
+        table.add_column("key")
+        table.add_column(previous_period)
+        table.add_column(period)
+        table.add_column("% change")
+
+        table.add_row(
+            "Total incidents",
+            str(previous_stats.total),
+            str(stats.total),
+            f"{pct_change(previous_stats.total, stats.total):2.2f}%",
+        )
+        table.add_row(
+            "Severity: S1",
+            f"{previous_stats.s1:<3}  {previous_stats.s1_pct:2.2f}%",
+            f"{stats.s1:<3}  {stats.s1_pct:2.2f}%",
+            f"{pct_change(previous_stats.s1, stats.s1):2.2f}%",
+        )
+        table.add_row(
+            "Severity: S2",
+            f"{previous_stats.s2:<3}  {previous_stats.s2_pct:2.2f}%",
+            f"{stats.s2:<3}  {stats.s2_pct:2.2f}%",
+            f"{pct_change(previous_stats.s2, stats.s2):2.2f}%",
+        )
+        table.add_row(
+            "Severity: S3",
+            f"{previous_stats.s3:<3}  {previous_stats.s3_pct:2.2f}%",
+            f"{stats.s3:<3}  {stats.s3_pct:2.2f}%",
+            f"{pct_change(previous_stats.s3, stats.s3):2.2f}%",
+        )
+        table.add_row(
+            "Severity: S4",
+            f"{previous_stats.s4:<3}  {previous_stats.s4_pct:2.2f}%",
+            f"{stats.s4:<3}  {stats.s4_pct:2.2f}%",
+            f"{pct_change(previous_stats.s4, stats.s4):2.2f}%",
+        )
+        table.add_row(
+            "Number reviewed",
+            str(previous_stats.number_reviewed),
+            str(stats.number_reviewed),
+            f"{pct_change(previous_stats.number_reviewed, stats.number_reviewed):2.2f}%",
+        )
+        table.add_row(
+            "Percent S1/S2 reviewed",
+            f"{previous_stats.s1s2_reviewed_pct:2.2f}%",
+            f"{stats.s1s2_reviewed_pct:2.2f}%",
+            f"{pct_change(previous_stats.s1s2_reviewed_pct, stats.s1s2_reviewed_pct):2.2f}%"
+            "",
+        )
+        table.add_row(
+            "Impacted entities",
+            str(len(previous_stats.entities)),
+            str(len(stats.entities)),
+            f"{pct_change(len(previous_stats.entities), len(stats.entities)):2.2f}%",
+        )
+        table.add_row(
+            "Detection by automation",
+            f"{previous_stats.automation} ({previous_stats.automation_pct:2.2f}%)",
+            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
+            f"{pct_change(previous_stats.automation, stats.automation):2.2f}%",
+        )
+        table.add_row(
+            "Detection by manual",
+            f"{previous_stats.manual} ({previous_stats.manual_pct:2.2f}%)",
+            f"{stats.manual} ({stats.manual_pct:2.2f}%)",
+            f"{pct_change(previous_stats.manual, stats.manual):2.2f}%",
+        )
+        table.add_row(
+            "MTT alerted",
+            humanize(previous_stats.mtt_alerted),
+            humanize(stats.mtt_alerted),
+            f"{pct_change(previous_stats.mtt_alerted, stats.mtt_alerted):2.2f}%",
+        )
+        table.add_row(
+            "MTT responded",
+            humanize(previous_stats.mtt_responded),
+            humanize(stats.mtt_responded),
+            f"{pct_change(previous_stats.mtt_responded, stats.mtt_responded):2.2f}%",
+        )
+        table.add_row(
+            "MTT mitigated",
+            humanize(previous_stats.mtt_mitigated),
+            humanize(stats.mtt_mitigated),
+            f"{pct_change(previous_stats.mtt_mitigated, stats.mtt_mitigated):2.2f}%",
+        )
+
+    else:
+        table.add_column("key")
+        table.add_column(period)
+
+        table.add_row("Total incidents", str(stats.total))
+        table.add_row("Severity: S1", f"{stats.s1:<3}  {stats.s1_pct:2.2f}%")
+        table.add_row("Severity: S2", f"{stats.s2:<3}  {stats.s2_pct:2.2f}%")
+        table.add_row("Severity: S3", f"{stats.s3:<3}  {stats.s3_pct:2.2f}%")
+        table.add_row("Severity: S4", f"{stats.s4:<3}  {stats.s4_pct:2.2f}%")
+        table.add_row("Number reviewed", str(stats.number_reviewed))
+        table.add_row(
+            "Percent S1/S2 reviewed",
+            f"{(stats.s1s2_reviewed / stats.s1s2_incidents) * 100:2.2f}%",
+        )
+        table.add_row("Impacted entities", str(len(stats.entities)))
+        table.add_row(
+            "Detection by automation",
+            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
+        )
+        table.add_row(
+            "Detection by manual", f"{stats.manual} ({stats.manual_pct:2.2f}%)"
+        )
+        table.add_row("MTT alerted", humanize(stats.mtt_alerted))
+        table.add_row("MTT responded", humanize(stats.mtt_responded))
+        table.add_row("MTT mitigated", humanize(stats.mtt_mitigated))
+
+    return table
+
+
 @click.command()
 @click.argument("period")
 @click.pass_context
@@ -301,6 +422,9 @@ def iim_qbr(ctx, period):
 
     click.echo("Determining statistics data...")
 
+    def by_bucket(incident_list, bucket):
+        return [i for i in incident_list if i.entities and i.entity_bucket == bucket]
+
     click.echo("Getting statistics...")
     stats = get_stats(these_incidents)
     stats = get_review_stats(
@@ -308,6 +432,22 @@ def iim_qbr(ctx, period):
         date_start=date_start,
         date_end=date_end,
         incidents=incidents,
+        review_data=review_data,
+    )
+    service_stats = get_stats(by_bucket(these_incidents, "service"))
+    service_stats = get_review_stats(
+        stats=service_stats,
+        date_start=date_start,
+        date_end=date_end,
+        incidents=by_bucket(incidents, "service"),
+        review_data=review_data,
+    )
+    product_stats = get_stats(by_bucket(these_incidents, "product"))
+    product_stats = get_review_stats(
+        stats=product_stats,
+        date_start=date_start,
+        date_end=date_end,
+        incidents=by_bucket(incidents, "product"),
         review_data=review_data,
     )
 
@@ -319,6 +459,22 @@ def iim_qbr(ctx, period):
             date_start=previous_start,
             date_end=previous_end,
             incidents=incidents,
+            review_data=review_data,
+        )
+        previous_service_stats = get_stats(by_bucket(previous_incidents, "service"))
+        previous_service_stats = get_review_stats(
+            stats=previous_service_stats,
+            date_start=previous_start,
+            date_end=previous_end,
+            incidents=by_bucket(incidents, "service"),
+            review_data=review_data,
+        )
+        previous_product_stats = get_stats(by_bucket(previous_incidents, "product"))
+        previous_product_stats = get_review_stats(
+            stats=previous_product_stats,
+            date_start=previous_start,
+            date_end=previous_end,
+            incidents=by_bucket(incidents, "product"),
             review_data=review_data,
         )
 
@@ -334,8 +490,6 @@ def iim_qbr(ctx, period):
         )
 
     click.echo()
-
-    table = Table()
 
     with open(f"qbr_stats_{period}.csv", "w") as fp:
         writer = csv.writer(fp)
@@ -355,120 +509,34 @@ def iim_qbr(ctx, period):
 
     if previous_start:
         assert previous_period is not None
-        table.add_column("key")
-        table.add_column(previous_period)
-        table.add_column(period)
-        table.add_column("% change")
-
-        table.add_row(
-            "Total incidents",
-            str(previous_stats.total),
-            str(stats.total),
-            f"{pct_change(previous_stats.total, stats.total):2.2f}%",
+        rich.print(
+            build_stats_table(
+                "All incidents",
+                stats,
+                period,
+                previous_stats=previous_stats,
+                previous_period=previous_period,
+            )
         )
-
-        table.add_row(
-            "Severity: S1",
-            f"{previous_stats.s1:<3}  {previous_stats.s1_pct:2.2f}%",
-            f"{stats.s1:<3}  {stats.s1_pct:2.2f}%",
-            f"{pct_change(previous_stats.s1, stats.s1):2.2f}%",
+        rich.print(
+            build_stats_table(
+                "Service incidents",
+                service_stats,
+                period,
+                previous_stats=previous_service_stats,
+                previous_period=previous_period,
+            )
         )
-        table.add_row(
-            "Severity: S2",
-            f"{previous_stats.s2:<3}  {previous_stats.s2_pct:2.2f}%",
-            f"{stats.s2:<3}  {stats.s2_pct:2.2f}%",
-            f"{pct_change(previous_stats.s2, stats.s2):2.2f}%",
+        rich.print(
+            build_stats_table(
+                "Product incidents",
+                product_stats,
+                period,
+                previous_stats=previous_product_stats,
+                previous_period=previous_period,
+            )
         )
-        table.add_row(
-            "Severity: S3",
-            f"{previous_stats.s3:<3}  {previous_stats.s3_pct:2.2f}%",
-            f"{stats.s3:<3}  {stats.s3_pct:2.2f}%",
-            f"{pct_change(previous_stats.s3, stats.s3):2.2f}%",
-        )
-        table.add_row(
-            "Severity: S4",
-            f"{previous_stats.s4:<3}  {previous_stats.s4_pct:2.2f}%",
-            f"{stats.s4:<3}  {stats.s4_pct:2.2f}%",
-            f"{pct_change(previous_stats.s4, stats.s4):2.2f}%",
-        )
-
-        table.add_row(
-            "Number reviewed",
-            str(previous_stats.number_reviewed),
-            str(stats.number_reviewed),
-            f"{pct_change(previous_stats.number_reviewed, stats.number_reviewed):2.2f}%",
-        )
-        table.add_row(
-            "Percent S1/S2 reviewed",
-            f"{previous_stats.s1s2_reviewed_pct:2.2f}%",
-            f"{stats.s1s2_reviewed_pct:2.2f}%",
-            f"{pct_change(previous_stats.s1s2_reviewed_pct, stats.s1s2_reviewed_pct):2.2f}%"
-            "",
-        )
-        table.add_row(
-            "Impacted entities",
-            str(len(previous_stats.entities)),
-            str(len(stats.entities)),
-            f"{pct_change(len(previous_stats.entities), len(stats.entities)):2.2f}%",
-        )
-
-        table.add_row(
-            "Detection by automation",
-            f"{previous_stats.automation} ({previous_stats.automation_pct:2.2f}%)",
-            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
-            f"{pct_change(previous_stats.automation, stats.automation):2.2f}%",
-        )
-        table.add_row(
-            "Detection by manual",
-            f"{previous_stats.manual} ({previous_stats.manual_pct:2.2f}%)",
-            f"{stats.manual} ({stats.manual_pct:2.2f}%)",
-            f"{pct_change(previous_stats.manual, stats.manual):2.2f}%",
-        )
-
-        table.add_row(
-            "MTT alerted",
-            humanize(previous_stats.mtt_alerted),
-            humanize(stats.mtt_alerted),
-            f"{pct_change(previous_stats.mtt_alerted, stats.mtt_alerted):2.2f}%",
-        )
-        table.add_row(
-            "MTT responded",
-            humanize(previous_stats.mtt_responded),
-            humanize(stats.mtt_responded),
-            f"{pct_change(previous_stats.mtt_responded, stats.mtt_responded):2.2f}%",
-        )
-        table.add_row(
-            "MTT mitigated",
-            humanize(previous_stats.mtt_mitigated),
-            humanize(stats.mtt_mitigated),
-            f"{pct_change(previous_stats.mtt_mitigated, stats.mtt_mitigated):2.2f}%",
-        )
-
     else:
-        table.add_column("key")
-        table.add_column(period)
-
-        table.add_row("Total incidents", str(stats.total))
-        table.add_row("Severity: S1", f"{stats.s1:<3}  {stats.s1_pct:2.2f}%")
-        table.add_row("Severity: S2", f"{stats.s2:<3}  {stats.s2_pct:2.2f}%")
-        table.add_row("Severity: S3", f"{stats.s3:<3}  {stats.s3_pct:2.2f}%")
-        table.add_row("Severity: S4", f"{stats.s4:<3}  {stats.s4_pct:2.2f}%")
-        table.add_row("Number reviewed", str(stats.number_reviewed))
-        table.add_row(
-            "Percent S1/S2 reviewed",
-            f"{(stats.s1s2_reviewed / stats.s1s2_incidents) * 100:2.2f}%",
-        )
-        table.add_row("Impacted entities", str(len(stats.entities)))
-        table.add_row(
-            "Detection by automation",
-            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
-        )
-        table.add_row(
-            "Detection by manual", f"{stats.manual} ({stats.manual_pct:2.2f}%)"
-        )
-
-        table.add_row("MTT alerted", humanize(stats.mtt_alerted))
-        table.add_row("MTT responded", humanize(stats.mtt_responded))
-        table.add_row("MTT mitigated", humanize(stats.mtt_mitigated))
-
-    rich.print(table)
+        rich.print(build_stats_table("All incidents", stats, period))
+        rich.print(build_stats_table("Service incidents", service_stats, period))
+        rich.print(build_stats_table("Product incidents", product_stats, period))
