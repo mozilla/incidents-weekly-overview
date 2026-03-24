@@ -5,11 +5,49 @@ stats, syncing incident report data to Jira, and more.
 
 # Setup
 
-Copy `env.tmpl` to `.env` and then fill in the three values per the
-instructions in the file.
+## Environment
+
+All scripts require environment variables to be set.
+
+Copy `env.tmpl` to `.env`. You'll fill in values using instructions below.
+
+## Jira API token
+
+All scripts that query Jira need `JIRA_USERNAME`, `JIRA_TOKEN`, and `JIRA_URL`
+set in `.env`.
+
+To generate an API token:
+
+1. Log in to your Atlassian account and go to
+   *Account Settings → Security → API tokens*.
+2. Click **Create API token**, give it a label, and copy the token value.
+3. Set `JIRA_USERNAME` in `.env` to your Atlassian account email address.
+4. Set `JIRA_TOKEN` in `.env` to the token you just copied.
+5. Set `JIRA_URL` in `.env` to the base URL of your Jira instance
+
+## Google Drive API credentials
+
+The `iim-data` and `iim-gdoc-download` commands require Google Drive API
+credentials. One-time setup:
+
+1. Go to the [Google Cloud Console](https://console.cloud.google.com/) and
+   create a project (or select an existing one).
+2. Enable the **Google Drive API** for the project under *APIs & Services →
+   Enabled APIs*.
+3. Go to *APIs & Services → Credentials*, click **Create Credentials →
+   OAuth client ID**, and choose **Desktop app** as the application type.
+4. Download the resulting JSON file and save it as `client_secret.json` in the
+   repository root (this path is the default; you can pass a different path
+   with `--client-secret-file`).
+5. On first run, a browser window will open asking you to authorise access.
+   After you approve, the token is cached in `.gdrive/oauth_token.json` and
+   subsequent runs will not prompt again (it refreshes automatically).
+
+## Python
 
 Run `uv sync` from the repository root to install the package and its
 dependencies.
+
 
 # usage
 

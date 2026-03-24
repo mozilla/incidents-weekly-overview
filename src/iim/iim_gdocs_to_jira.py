@@ -258,12 +258,7 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
     Prompts user for google doc metadata as markdown. Parses the markdown and
     extracts updated metadata and issue key. Pushes information to Jira.
 
-    Create an API token in Jira and set these in the `.env` file:
-
-    \b
-    * JIRA_USERNAME
-    * JIRA_TOKEN
-    * JIRA_URL
+    See `README.md` for setup instructions.
     """
     jira_client = JiraAPI(
         base_url=os.environ["JIRA_URL"].strip(),

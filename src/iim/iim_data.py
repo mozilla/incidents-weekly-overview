@@ -48,12 +48,7 @@ def iim_data(ctx, active_only, details, client_secret_file):
     """
     Lists all incidents. Can also list active incidents.
 
-    Create an API token in Jira and set these in the `.env` file:
-
-    \b
-    * JIRA_USERNAME
-    * JIRA_TOKEN
-    * JIRA_URL
+    See `README.md` for setup instructions.
     """
     jira = JiraAPI(
         base_url=os.environ["JIRA_URL"].strip(),
