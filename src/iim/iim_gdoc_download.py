@@ -6,22 +6,15 @@
 Download a Google Doc as a markdown file.
 """
 
-import io
 import os
 import re
 import traceback
 
 import click
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
+
+from iim.libgdoc import BadGdocId, build_service, download_gdoc
 
 
-SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
-
-DOC_ID_RE = re.compile(r"/document/d/([a-zA-Z0-9_-]+)")
 UNSAFE_CHARS_RE = re.compile(r"[^\w\s-]")
 WHITESPACE_RE = re.compile(r"[\s_]+")
 
@@ -32,36 +25,6 @@ def title_to_filename(title):
     name = WHITESPACE_RE.sub("_", name)
     name = name.strip("_-")
     return name + ".md"
-
-
-def extract_doc_id(url):
-    match = DOC_ID_RE.search(url)
-    if not match:
-        raise ValueError(f"Could not extract document ID from URL: {url}")
-    return match.group(1)
-
-
-TOKEN_FILE = os.path.join(".gdrive", "oauth_token.json")
-
-
-def get_credentials(client_secret_file):
-    creds = None
-
-    if os.path.exists(TOKEN_FILE):
-        creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
-
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(client_secret_file, SCOPES)
-            creds = flow.run_local_server(port=0)
-
-        os.makedirs(os.path.dirname(TOKEN_FILE), exist_ok=True)
-        with open(TOKEN_FILE, "w") as f:
-            f.write(creds.to_json())
-
-    return creds
 
 
 @click.command()
@@ -94,40 +57,20 @@ def iim_gdoc_download(client_secret_file, output_dir, gdoc_urls):
     else:
         raise click.UsageError("Provide GDOC_URLS as arguments or pipe them via stdin.")
 
-    creds = get_credentials(client_secret_file)
-    service = build("drive", "v3", credentials=creds)
+    drive_service = build_service(client_secret_file)
 
     for url in urls:
         try:
-            doc_id = extract_doc_id(url)
-        except ValueError as e:
-            raise click.BadParameter(str(e), param_hint="GDOC_URLS")
-
-        try:
-            meta = (
-                service.files()
-                .get(fileId=doc_id, fields="name", supportsAllDrives=True)
-                .execute()
-            )
+            docname, content = download_gdoc(drive_service, url)
+        except BadGdocId as exc:
+            raise click.BadParameter(str(exc), param_hint="GDOC_URLS")
         except Exception:
             traceback.print_exc()
             click.echo("Unable to download incident report.")
             continue
 
         os.makedirs(output_dir, exist_ok=True)
-        output = os.path.join(output_dir, title_to_filename(meta["name"]))
-
-        request = service.files().export_media(
-            fileId=doc_id, mimeType="text/x-markdown"
-        )
-
-        buffer = io.BytesIO()
-        downloader = MediaIoBaseDownload(buffer, request)
-        done = False
-        while not done:
-            _, done = downloader.next_chunk()
-
-        content = buffer.getvalue().decode("utf-8")
+        output = os.path.join(output_dir, title_to_filename(docname))
 
         with open(output, "w") as f:
             f.write(content)

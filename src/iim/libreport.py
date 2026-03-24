@@ -114,6 +114,7 @@ class IncidentReport:
     key: Optional[str] = None
     jira_url: Optional[str] = None
     report_url: Optional[str] = None
+    report_modified: Optional[str] = None
     summary: Optional[str] = None
     # FIXME(willkg): this is an ADF structure from Jira; we should figure out
     # how to handle this better

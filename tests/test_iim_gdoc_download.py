@@ -2,18 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import json
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 from googleapiclient.errors import HttpError
 
-from iim.iim_gdoc_download import (
-    extract_doc_id,
-    iim_gdoc_download,
-    title_to_filename,
-)
+from iim.iim_gdoc_download import iim_gdoc_download, title_to_filename
+from iim.libgdoc import extract_doc_id
 
 
 # ---------------------------------------------------------------------------
@@ -110,14 +106,6 @@ def runner():
     return CliRunner()
 
 
-@pytest.fixture
-def client_secret_file(tmp_path):
-    """A minimal client secret JSON file that satisfies click.Path(exists=True)."""
-    path = tmp_path / "client_secret.json"
-    path.write_text(json.dumps({"installed": {"client_id": "test"}}))
-    return str(path)
-
-
 def invoke(
     runner,
     args,
@@ -136,11 +124,9 @@ def invoke(
     cli_args += list(args)
 
     with (
-        patch("iim.iim_gdoc_download.get_credentials", return_value=MagicMock()),
-        patch("iim.iim_gdoc_download.build", return_value=mock_service),
-        patch(
-            "iim.iim_gdoc_download.MediaIoBaseDownload", make_fake_downloader(content)
-        ),
+        patch("iim.libgdoc.get_credentials", return_value=MagicMock()),
+        patch("iim.libgdoc.build", return_value=mock_service),
+        patch("iim.libgdoc.MediaIoBaseDownload", make_fake_downloader(content)),
     ):
         return runner.invoke(iim_gdoc_download, cli_args, input=input)
 
@@ -188,10 +174,10 @@ def test_cli_multiple_urls(runner, client_secret_file, tmp_path):
     ]
 
     with (
-        patch("iim.iim_gdoc_download.get_credentials", return_value=MagicMock()),
-        patch("iim.iim_gdoc_download.build", return_value=mock_service),
+        patch("iim.libgdoc.get_credentials", return_value=MagicMock()),
+        patch("iim.libgdoc.build", return_value=mock_service),
         patch(
-            "iim.iim_gdoc_download.MediaIoBaseDownload",
+            "iim.libgdoc.MediaIoBaseDownload",
             make_fake_downloader(DOC_CONTENT),
         ),
     ):
@@ -237,10 +223,10 @@ def test_cli_stdin_multiple_urls(runner, client_secret_file, tmp_path):
     ]
 
     with (
-        patch("iim.iim_gdoc_download.get_credentials", return_value=MagicMock()),
-        patch("iim.iim_gdoc_download.build", return_value=mock_service),
+        patch("iim.libgdoc.get_credentials", return_value=MagicMock()),
+        patch("iim.libgdoc.build", return_value=mock_service),
         patch(
-            "iim.iim_gdoc_download.MediaIoBaseDownload",
+            "iim.libgdoc.MediaIoBaseDownload",
             make_fake_downloader(DOC_CONTENT),
         ),
     ):
@@ -306,10 +292,10 @@ def test_cli_api_404(runner, client_secret_file, tmp_path):
     )
 
     with (
-        patch("iim.iim_gdoc_download.get_credentials", return_value=MagicMock()),
-        patch("iim.iim_gdoc_download.build", return_value=mock_service),
+        patch("iim.libgdoc.get_credentials", return_value=MagicMock()),
+        patch("iim.libgdoc.build", return_value=mock_service),
         patch(
-            "iim.iim_gdoc_download.MediaIoBaseDownload",
+            "iim.libgdoc.MediaIoBaseDownload",
             make_fake_downloader(DOC_CONTENT),
         ),
     ):

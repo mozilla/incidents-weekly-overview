@@ -13,10 +13,8 @@ import click
 from dotenv import load_dotenv
 import rich
 
-from iim.libjira import (
-    JiraAPI,
-    fix_jira_incident_data,
-)
+from iim.libgdoc import build_service, update_report
+from iim.libjira import JiraAPI, fix_jira_incident_data
 
 
 load_dotenv()
@@ -24,19 +22,26 @@ load_dotenv()
 
 @click.command()
 @click.option(
-    "--active/--no-active",
-    default="False",
+    "--active-only/--no-active-only",
+    default=False,
     show_default=True,
     help="Whether or not to show active incidents.",
 )
 @click.option(
     "--details/--no-details",
-    default="True",
+    default=True,
     show_default=True,
     help="Whether or not to print all the details or just incident report urls.",
 )
+@click.option(
+    "--client-secret-file",
+    default="client_secret.json",
+    show_default=True,
+    type=click.Path(exists=True),
+    help="Path to the OAuth2 client secret JSON file",
+)
 @click.pass_context
-def iim_data(ctx, active, details):
+def iim_data(ctx, active_only, details, client_secret_file):
     """
     Lists all incidents. Can also list active incidents.
 
@@ -53,6 +58,10 @@ def iim_data(ctx, active, details):
         password=os.environ["JIRA_TOKEN"].strip(),
     )
 
+    drive_service = None
+    if details:
+        drive_service = build_service(client_secret_file)
+
     issue_data = jira.get_all_issues_for_project(project_key="IIM")
 
     incidents = [
@@ -62,17 +71,23 @@ def iim_data(ctx, active, details):
 
     def print_incident(incident, details):
         if details:
+            incident = update_report(drive_service, incident)
             rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
-            rich.print(incident.resolved)
-            rich.print(incident.jira_url)
-        rich.print(incident.report_url)
-        if details:
+            rich.print(f"Status:       {incident.status}")
+            rich.print(f"Resolved:     {incident.resolved}")
+            modified_time = incident.report_modified or "unknown"
+            rich.print(f"Doc modified: {modified_time}")
             click.echo()
+            rich.print(f"Jira: {incident.jira_url}")
+            rich.print(f"Doc:  {incident.report_url}")
+            click.echo()
+        else:
+            rich.print(incident.report_url)
 
     # Header -> list of incidents
     groups = {}
 
-    if active:
+    if active_only:
         # shift to last week, floor('week') gets monday, shift 4 days to friday
         two_weeks_ago = arrow.now().shift(days=-14).format("YYYY-MM-DD")
 
