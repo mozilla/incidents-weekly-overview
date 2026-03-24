@@ -49,6 +49,8 @@ def iim_gdoc_download(client_secret_file, output_dir, gdoc_urls):
 
     GDOC_URLS are the URLs of the Google Docs to download. If not provided,
     URLs are read one per line from stdin.
+
+    See `README.md` for setup instructions.
     """
     if gdoc_urls:
         urls = list(gdoc_urls)

@@ -64,12 +64,7 @@ def iim_weekly_report(ctx):
     Computes a weekly report based on Jira data. Make sure to update the data
     in Jira before running this report.
 
-    Create an API token in Jira and set these in the `.env` file:
-
-    \b
-    * JIRA_USERNAME
-    * JIRA_TOKEN
-    * JIRA_URL
+    See `README.md` for setup instructions.
     """
     jira_client = JiraAPI(
         base_url=os.environ["JIRA_URL"].strip(),

@@ -237,12 +237,7 @@ def iim_qbr(ctx, period):
     * "YYYY" for all the data in a specific year
     * "YYYYqN" for all the data in a specific year and quarter
 
-    Create an API token in Jira and set these in the `.env` file:
-
-    \b
-    * JIRA_USERNAME
-    * JIRA_TOKEN
-    * JIRA_URL
+    See `README.md` for setup instructions.
     """
 
     date_start = date_end = None
