@@ -25,7 +25,10 @@ load_dotenv()
     "--active-only/--no-active-only",
     default=False,
     show_default=True,
-    help="Whether or not to show active incidents.",
+    help=(
+        "Whether or not to show active incidents, recently resolved incidents, and "
+        "incidents where the report has been updated recently."
+    ),
 )
 @click.option(
     "--details/--no-details",
@@ -59,7 +62,7 @@ def iim_data(ctx, active_only, details, client_secret_file):
     )
 
     drive_service = None
-    if details:
+    if details or active_only:
         drive_service = build_service(client_secret_file)
 
     issue_data = jira.get_all_issues_for_project(project_key="IIM")
@@ -69,9 +72,11 @@ def iim_data(ctx, active_only, details, client_secret_file):
         for incident in issue_data
     ]
 
+    if drive_service:
+        incidents = [update_report(drive_service, incident) for incident in incidents]
+
     def print_incident(incident, details):
         if details:
-            incident = update_report(drive_service, incident)
             rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
             rich.print(f"Status:       {incident.status}")
             rich.print(f"Resolved:     {incident.resolved}")
@@ -88,7 +93,6 @@ def iim_data(ctx, active_only, details, client_secret_file):
     groups = {}
 
     if active_only:
-        # shift to last week, floor('week') gets monday, shift 4 days to friday
         two_weeks_ago = arrow.now().shift(days=-14).format("YYYY-MM-DD")
 
         resolved_incidents = [
@@ -102,6 +106,19 @@ def iim_data(ctx, active_only, details, client_secret_file):
         active_incidents = [item for item in incidents if item.status != "Resolved"]
         header = f"Active incidents ({len(active_incidents)}):"
         groups[header] = active_incidents
+
+        shown_keys = {i.key for i in resolved_incidents} | {
+            i.key for i in active_incidents
+        }
+        recently_updated = [
+            item
+            for item in incidents
+            if item.key not in shown_keys
+            and item.report_modified
+            and item.report_modified > two_weeks_ago
+        ]
+        header = f"Recently updated docs ({len(recently_updated)}):"
+        groups[header] = recently_updated
 
     else:
         groups[f"All incidents ({len(incidents)})"] = incidents
