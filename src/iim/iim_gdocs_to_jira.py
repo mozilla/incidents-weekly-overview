@@ -76,64 +76,69 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             click.echo(f"Error: {exc}. Skipping")
             continue
 
-        try:
-            markdown_report: IncidentReport = parse_markdown(md_data)
-        except (KeyError, IndexError):
-            traceback.print_exc()
-            click.echo("Error: Error parsing document.")
-            click.echo("Next?")
+        while True:
+            try:
+                markdown_report: IncidentReport = parse_markdown(md_data)
+            except (KeyError, IndexError):
+                traceback.print_exc()
+                click.echo("Error: Error parsing document.")
+                click.echo("[S]kip  [R]eload")
+                with open("/dev/tty") as tty:
+                    user_input = tty.readline().strip().lower()
+                if user_input == "r":
+                    md_data = read_markdown(fn)
+                    continue
+                break
+            except (NoJiraIIMKeyError, NoJiraIIMURLError):
+                click.echo("Error: This incident report doesn't have the Jira IIM key.")
+                click.echo("[S]kip  [R]eload")
+                with open("/dev/tty") as tty:
+                    user_input = tty.readline().strip().lower()
+                if user_input == "r":
+                    md_data = read_markdown(fn)
+                    continue
+                break
+
+            issue_key = markdown_report.key
+            jira_incident: IncidentReport = jira_client.get_issue_report(issue_key)
+
+            # Generate an understanding of what changed
+            status_diff = generate_status_diff(
+                jira_data=jira_incident, report_data=markdown_report
+            )
+            metadata_diff = generate_metadata_diff(
+                jira_data=jira_incident, report_data=markdown_report
+            )
+            actions_diff = generate_actions_diff(
+                jira_data=jira_incident, report_data=markdown_report
+            )
+
+            # TODO: Update services
+            # TODO: Update post-mortem actions -- not in metadata
+
+            all_diffs = status_diff + metadata_diff + actions_diff
+            changes = print_diff_table(jira_incident, markdown_report, all_diffs)
+
+            if not changes:
+                click.echo("Nothing to change.")
+
+            if changes and not dry_run:
+                click.echo("[S]kip  [ENTER] apply  [R]eload")
+            else:
+                click.echo("[S]kip  [R]eload")
+
             with open("/dev/tty") as tty:
-                tty.readline()
-            continue
-        except (NoJiraIIMKeyError, NoJiraIIMURLError):
-            click.echo("Error: This incident report doesn't have the Jira IIM key.")
-            click.echo("Next?")
-            with open("/dev/tty") as tty:
-                tty.readline()
-            continue
+                user_input = tty.readline().strip().lower()
 
-        issue_key = markdown_report.key
-        jira_incident: IncidentReport = jira_client.get_issue_report(issue_key)
-
-        # Generate an understanding of what changed
-        status_diff = generate_status_diff(
-            jira_data=jira_incident, report_data=markdown_report
-        )
-        metadata_diff = generate_metadata_diff(
-            jira_data=jira_incident, report_data=markdown_report
-        )
-        actions_diff = generate_actions_diff(
-            jira_data=jira_incident, report_data=markdown_report
-        )
-
-        # TODO: Update services
-        # TODO: Update post-mortem actions -- not in metadata
-
-        all_diffs = status_diff + metadata_diff + actions_diff
-        changes = print_diff_table(jira_incident, markdown_report, all_diffs)
-
-        if not changes:
-            click.echo("Nothing to change.")
-            click.echo("Next?")
-            with open("/dev/tty") as tty:
-                tty.readline()
-
-        elif dry_run:
-            click.echo("Dry-run mode. Pass without --dry-run to commit.")
-            click.echo("Next?")
-            with open("/dev/tty") as tty:
-                tty.readline()
-
-        else:
-            click.echo("ENTER to commit, CTRL-C to exit, S to skip")
-            with open("/dev/tty") as tty:
-                user_input = tty.readline()
-            if user_input.strip().lower() == "s":
+            if user_input == "r":
+                md_data = read_markdown(fn)
                 continue
 
-            click.echo("Committing to Jira ...")
-            apply_changes(
-                jira_client, issue_key, status_diff, metadata_diff, actions_diff
-            )
+            if changes and not dry_run and user_input != "s":
+                click.echo("Committing to Jira ...")
+                apply_changes(
+                    jira_client, issue_key, status_diff, metadata_diff, actions_diff
+                )
+            break
 
     click.echo("Done!")
