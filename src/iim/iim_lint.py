@@ -168,8 +168,17 @@ LINT_RULES: list[LintRule] = [
     default=False,
     help="Only print ERR failures; omit incidents with warnings only",
 )
+@click.option(
+    "--list-rules",
+    "list_rules",
+    is_flag=True,
+    default=False,
+    help="List all lint rules and exit",
+)
 @click.argument("issue_keys", nargs=-1)
-def iim_lint(fetch_all: bool, errors_only: bool, issue_keys: tuple[str, ...]):
+def iim_lint(
+    fetch_all: bool, errors_only: bool, list_rules: bool, issue_keys: tuple[str, ...]
+):
     """
     Lint Jira IIM incident issues for data quality problems.
 
@@ -177,6 +186,12 @@ def iim_lint(fetch_all: bool, errors_only: bool, issue_keys: tuple[str, ...]):
 
     Either provide ISSUE_KEYS or use --all to fetch every incident.
     """
+    if list_rules:
+        for rule in LINT_RULES:
+            label = rule.severity.upper()
+            click.echo(f"[{label} {rule.lr_number} {rule.name}]")
+        return
+
     if fetch_all and issue_keys:
         raise click.UsageError("Provide either ISSUE_KEYS or --all, not both.")
     if not fetch_all and not issue_keys:
@@ -187,7 +202,7 @@ def iim_lint(fetch_all: bool, errors_only: bool, issue_keys: tuple[str, ...]):
         username=os.environ["JIRA_USERNAME"].strip(),
         password=os.environ["JIRA_TOKEN"].strip(),
     )
-    jira_url = os.environ["JIRA_URL"].strip().rstrip("/")
+    jira_url = jira_client.base_url
 
     reports: list[IncidentReport] = []
 
