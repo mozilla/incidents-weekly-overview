@@ -187,7 +187,7 @@ def iim_lint(fetch_all: bool, errors_only: bool, issue_keys: tuple[str, ...]):
         username=os.environ["JIRA_USERNAME"].strip(),
         password=os.environ["JIRA_TOKEN"].strip(),
     )
-    jira_url = os.environ["JIRA_URL"].strip()
+    jira_url = os.environ["JIRA_URL"].strip().rstrip("/")
 
     reports: list[IncidentReport] = []
 
