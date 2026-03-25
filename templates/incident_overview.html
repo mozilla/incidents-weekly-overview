@@ -16,21 +16,33 @@
   body {
     padding: 20px;
     max-width: 860px;
+    margin: 0 auto;
   }
 
   /* Headings */
+  h1.title {
+    font-size: 18px;
+    margin: 18px 0 10px;
+    color: #111827;
+    letter-spacing: 0.2px;
+    border: 0;
+    padding-top: 0px;
+  }
   h1 {
-    font-size: 16px;
+    font-size: 18px;
     margin: 18px 0 10px;
     color: #111827;
     letter-spacing: 0.2px;
     border-top: 1px solid #e5e7eb;
     padding-top: 14px;
   }
-  h1:first-of-type {
-    border-top: 0;
-    padding-top: 0;
-    margin-top: 0;
+  h2 {
+    font-size: 16px;
+    margin: 18px 0 10px;
+    color: #111827;
+    letter-spacing: 0.2px;
+    border-top: 1px solid #e5e7eb;
+    padding-top: 14px;
   }
 
   /* Paragraphs / meta */
@@ -59,7 +71,7 @@
     border-collapse: collapse;
   }
 
-  /* Make the first table (your Summary severity counts) compact and “badge-like” */
+  /* Make the first table (your Summary severity counts) compact and "badge-like" */
   table.severity_breakdown {
     width: auto;
     max-width: 520px;
@@ -68,6 +80,16 @@
   td {
     padding: 10px;
     border: 1px solid #e5e7eb;   /* ← THIS is what Gmail respects */
+  }
+
+  th {
+    text-align: left;
+    padding: 10px;
+    border: 1px solid #e5e7eb;
+    background: #f3f4f6;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
   }
 
   /* Zebra striping for long incident tables */
@@ -87,6 +109,37 @@
   table.incidents td:nth-child(4) {   /* summary */
     width: 100%;
     color: #1f2937;
+  }
+
+  /* Outer wrapper for side-by-side trends layout — declared first so
+     table.trends rules below override inherited border/padding on nested cells */
+  table.trends-layout {
+    width: auto;
+    border: 0;
+  }
+
+  table.trends-layout td {
+    border: 0;
+    padding: 0 16px 0 0;
+    vertical-align: top;
+  }
+  table.trends-layout:last-child {
+    padding: 0;
+  }
+
+  /* Trends summary tables */
+  table.trends {
+    width: auto;
+    margin-bottom: 12px;
+  }
+
+  table.trends td, table.trends th {
+    padding: 4px 8px;
+    border: 1px solid #e5e7eb;
+  }
+
+  table.trends tr:nth-child(even) td {
+    background-color: #f5f5f5;
   }
 
   div {
@@ -184,8 +237,199 @@
   </style>
 </head>
 <body>
-  <p>Weekly incident overview from {{ last_friday }} to {{ this_friday }}.
-  <h1>Summary</h1>
+  <h1 class="title">Weekly incident overview for Mozilla incidents</h1>
+  <p>From {{ last_friday | friendly_date }} to {{ this_friday | friendly_date }}</p>
+
+  <h1>Trends Summary</h1>
+  <p>
+    Recent 6 weeks: {{ trends_summary.recent.start | friendly_date }} to {{ trends_summary.recent.end | friendly_date }}.
+    Prior 6 weeks: {{ trends_summary.prior.start | friendly_date }} to {{ trends_summary.prior.end | friendly_date }}.
+  </p>
+
+  {% set prior_ents = trends_summary.prior.top_entities %}
+  {% set recent_ents = trends_summary.recent.top_entities %}
+  {% set max_len = [prior_ents|length, recent_ents|length]|max %}
+  <h2>Key operational metrics</h2>
+  <table class="trends-layout">
+    <tr>
+      <td>
+      </td>
+        <table class="trends">
+          <tr>
+            <th></th>
+            <th>Prior</th>
+            <th>Recent</th>
+            <th>Change</th>
+            <th>Objective</th>
+          </tr>
+          <tr>
+            <td>Total incidents</td>
+            <td>{{ trends_summary.prior.total_incidents }}</td>
+            <td>{{ trends_summary.recent.total_incidents }}</td>
+            <td>{{ direction_symbol(trends_summary.prior.total_incidents, trends_summary.recent.total_incidents, True, "more", "fewer") }}</td>
+            <td>Increase incident management adoption.</td>
+          </tr>
+          <tr>
+            <td>Total entities</td>
+            <td>{{ trends_summary.prior.total_entities }}</td>
+            <td>{{ trends_summary.recent.total_entities }}</td>
+            <td>{{ direction_symbol(trends_summary.prior.total_entities, trends_summary.recent.total_entities, True, "more", "fewer") }}</td>
+            <td>Increase incident management adoption.</td>
+          </tr>
+          <tr>
+            <td>Resolved incidents</td>
+            <td>{{ trends_summary.prior.status_counts['Resolved'] | round(1) }}%</td>
+            <td>{{ trends_summary.recent.status_counts['Resolved'] | round(1) }}%</td>
+            <td>{{ direction_symbol(trends_summary.prior.status_counts['Resolved'], trends_summary.recent.status_counts['Resolved'], True) }}</td>
+            <td>Increase percentage of resolved incidents.</td>
+          </tr>
+          <tr>
+            <td>Mean action items per<br>incident</td>
+            <td>{% if trends_summary.prior.mean_action_items is not none %}{{ trends_summary.prior.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.mean_action_items is not none %}{{ trends_summary.recent.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.mean_action_items, trends_summary.recent.mean_action_items, True) }}</td>
+            <td>Improve systems and processes after incidents.</td>
+          </tr>
+        </table>
+      <td>
+      </td>
+    </tr>
+  </table>
+
+  <h2>Program metrics</h2>
+  <table class="trends-layout">
+    <tr>
+      <td>
+        <table class="trends">
+          <tr>
+            <th colspan="4">General</th>
+          </tr>
+          <tr>
+            <th></th>
+            <th>Prior</th>
+            <th>Recent</th>
+            <th>Change</th>
+          </tr>
+          <tr>
+            <td>Total incidents</td>
+            <td>{{ trends_summary.prior.total_incidents }}</td>
+            <td>{{ trends_summary.recent.total_incidents }}</td>
+            <td>{{ direction_symbol(trends_summary.prior.total_incidents, trends_summary.recent.total_incidents, True, "more", "fewer") }}</td>
+          </tr>
+          {% for sev in ["S1", "S2", "S3", "S4"] %}
+          <tr>
+            <td><span class="sev sev-{{ sev }}">{{ sev }}</span></td>
+            <td>{{ trends_summary.prior.severity_counts[sev] | round(1) }}%</td>
+            <td>{{ trends_summary.recent.severity_counts[sev] | round(1) }}%</td>
+            <td></td>
+          </tr>
+          {% endfor %}
+          {% for status in ["Detected", "InProgress", "Mitigated", "Resolved"] %}
+          <tr>
+            <td><span class="status status-{{ status }}">{{ status }}</span></td>
+            <td>{{ trends_summary.prior.status_counts[status] | round(1) }}%</td>
+            <td>{{ trends_summary.recent.status_counts[status] | round(1) }}%</td>
+            <td>{{ direction_symbol(trends_summary.prior.status_counts[status], trends_summary.recent.status_counts[status], status == "Resolved") }}</td>
+          </tr>
+          {% endfor %}
+          <tr>
+            <td>Mean action items per<br>incident</td>
+            <td>{% if trends_summary.prior.mean_action_items is not none %}{{ trends_summary.prior.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.mean_action_items is not none %}{{ trends_summary.recent.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.mean_action_items, trends_summary.recent.mean_action_items, True) }}</td>
+          </tr>
+        </table>
+      </td>
+      <td>
+        <table class="trends">
+          <tr>
+            <th></th>
+            <th colspan="3">Service</th>
+            <th colspan="3">Product</th>
+          </tr>
+          <tr>
+            <th>Metric</th>
+            <th>Prior</th>
+            <th>Recent</th>
+            <th>Change</th>
+            <th>Prior</th>
+            <th>Recent</th>
+            <th>Change</th>
+          </tr>
+          <tr>
+            <td>MTT-DEC</td>
+            <td>{% if trends_summary.prior.service_mean_tt_dec is not none %}{{ trends_summary.prior.service_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.service_mean_tt_dec is not none %}{{ trends_summary.recent.service_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_dec, trends_summary.recent.service_mean_tt_dec) }}</td>
+            <td>{% if trends_summary.prior.product_mean_tt_dec is not none %}{{ trends_summary.prior.product_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.product_mean_tt_dec is not none %}{{ trends_summary.recent.product_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_dec, trends_summary.recent.product_mean_tt_dec) }}</td>
+          </tr>
+          <tr>
+            <td>MTT-ALERT</td>
+            <td>{% if trends_summary.prior.service_mean_tt_alert is not none %}{{ trends_summary.prior.service_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.service_mean_tt_alert is not none %}{{ trends_summary.recent.service_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_alert, trends_summary.recent.service_mean_tt_alert) }}</td>
+            <td>{% if trends_summary.prior.product_mean_tt_alert is not none %}{{ trends_summary.prior.product_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.product_mean_tt_alert is not none %}{{ trends_summary.recent.product_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_alert, trends_summary.recent.product_mean_tt_alert) }}</td>
+          </tr>
+          <tr>
+            <td>MTT-MIT</td>
+            <td>{% if trends_summary.prior.service_mean_tt_mit is not none %}{{ trends_summary.prior.service_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.service_mean_tt_mit is not none %}{{ trends_summary.recent.service_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_mit, trends_summary.recent.service_mean_tt_mit) }}</td>
+            <td>{% if trends_summary.prior.product_mean_tt_mit is not none %}{{ trends_summary.prior.product_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.product_mean_tt_mit is not none %}{{ trends_summary.recent.product_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_mit, trends_summary.recent.product_mean_tt_mit) }}</td>
+          </tr>
+          <tr>
+            <td>MTT-RES</td>
+            <td>{% if trends_summary.prior.service_mean_tt_res is not none %}{{ trends_summary.prior.service_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.service_mean_tt_res is not none %}{{ trends_summary.recent.service_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_res, trends_summary.recent.service_mean_tt_res) }}</td>
+            <td>{% if trends_summary.prior.product_mean_tt_res is not none %}{{ trends_summary.prior.product_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if trends_summary.recent.product_mean_tt_res is not none %}{{ trends_summary.recent.product_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_res, trends_summary.recent.product_mean_tt_res) }}</td>
+          </tr>
+        </table>
+
+        <table class="trends">
+          <tr>
+            <th colspan="4">Impacted entities</th>
+          </tr>
+          <tr>
+            <th></th>
+            <th>Prior</th>
+            <th>Recent</th>
+            <th>Change</th>
+          </tr>
+          <tr>
+            <td>Total entities</td>
+            <td>{{ trends_summary.prior.total_entities }}</td>
+            <td>{{ trends_summary.recent.total_entities }}</td>
+            <td>{{ direction_symbol(trends_summary.prior.total_entities, trends_summary.recent.total_entities, True, "more", "fewer") }}</td>
+          </tr>
+          <tr>
+            <td>Top entities</td>
+            <td>
+              {% for i in range(max_len) %}
+                {{ prior_ents[i][0] }} ({{ prior_ents[i][1] }})<br>
+              {% endfor %}
+            </td>
+            <td>
+              {% for i in range(max_len) %}
+                {{ recent_ents[i][0] }} ({{ recent_ents[i][1] }})<br>
+              {% endfor %}
+            </td>
+            <td></td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+
+  <h1>Incident Week Summary</h1>
   <p>
     {% if num_incidents == 1 %}
       There was {{ num_incidents }} incident in the last week.
@@ -205,8 +449,8 @@
       <td>{{ num_s4_incidents }}</td>
     </tr>
   </table>
-      
-  <h1>New incidents declared in the last week ({{ new_incidents | length }})</h1>
+
+  <h2>New incidents declared in the last week ({{ new_incidents | length }})</h2>
   {% if new_incidents %}
     <table class="incidents">
       <tr>
@@ -254,7 +498,7 @@
     </p>
   {% endif %}
 
-  <h1>Active incidents ({{ active_incidents | length }})</h1>
+  <h2>Active incidents ({{ active_incidents | length }})</h2>
   {% if active_incidents %}
     <table class="incidents">
       <tr>
@@ -302,7 +546,7 @@
     </p>
   {% endif %}
 
-  <h1>Dormant incidents ({{ dormant_incidents | length }})</h1>
+  <h2>Dormant incidents ({{ dormant_incidents | length }})</h2>
   {% if dormant_incidents %}
     <table class="incidents">
       <tr>
@@ -350,7 +594,7 @@
     </p>
   {% endif %}
 
-  <h1>Recently resolved incidents in the last 4 weeks ({{ recently_resolved | length }})</h1>
+  <h2>Recently resolved incidents in the last 4 weeks ({{ recently_resolved | length }})</h2>
   {% if recently_resolved %}
     <table class="incidents">
       <tr>
