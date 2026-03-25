@@ -532,6 +532,7 @@ def test_parse_markdown_symbols():
     assert data.status == "Resolved"
     assert data.impact_start == "2025-02-21 16:41"
     assert data.mitigated == "2025-02-21 18:15"
+    assert data.resolved == "2025-02-21 18:15"
 
 
 def test_parse_markdown_symbols_action_items():
