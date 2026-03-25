@@ -595,7 +595,9 @@ class ReportParserPre20250520(ReportParser):
         report.acknowledged = extract_timestamp(md_data.get("acknowledged"))
         report.responded = extract_timestamp(md_data.get("responded"))
         report.mitigated = extract_timestamp(md_data.get("mitigated"))
-        report.resolved = extract_timestamp(md_data.get("resolved"))
+        report.resolved = extract_timestamp(
+            md_data.get("resolved") or md_data.get("mitigated")
+        )
 
     def _extract_action_item_status(self, cell_items):
         """Extract status string from action item ticket cell."""
