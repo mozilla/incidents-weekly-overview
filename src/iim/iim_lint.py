@@ -131,6 +131,17 @@ class MissingActionItemsLintRule(LintRule):
         return None
 
 
+class UndeterminedSeverityLintRule(LintRule):
+    lr_number = "LR080"
+    name = "undetermined-severity"
+    severity = "warn"
+
+    def lint(self, report: IncidentReport) -> Optional[str]:
+        if report.severity == "undetermined":
+            return 'Severity is "undetermined".'
+        return None
+
+
 LINT_RULES: list[LintRule] = [
     MissingResolvedLintRule(),
     MissingMitigatedLintRule(),
@@ -139,6 +150,7 @@ LINT_RULES: list[LintRule] = [
     MissingDatesLintRule(),
     MismatchedDeclareDateLintRule(),
     MissingActionItemsLintRule(),
+    UndeterminedSeverityLintRule(),
 ]
 
 
