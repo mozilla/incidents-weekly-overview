@@ -12,8 +12,27 @@ from iim.iim_weekly_overview import (
     _mean_timedelta,
     compute_trends_summary,
     direction,
+    friendly_date,
 )
 from iim.libreport import IncidentReport
+
+
+# ---------------------------------------------------------------------------
+# friendly_date
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "date_str,expected",
+    [
+        ("2026-03-20", "March 20, 2026"),
+        ("2026-03-01", "March 1, 2026"),
+        ("2026-01-15", "January 15, 2026"),
+        ("2025-12-31", "December 31, 2025"),
+    ],
+)
+def test_friendly_date(date_str, expected):
+    assert friendly_date(date_str) == expected
 
 
 def make_incident(**kwargs):
