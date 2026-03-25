@@ -267,3 +267,22 @@ def test_missing_action_items_fails_when_resolved_with_none_action_items():
     assert MissingActionItemsLintRule().lint(report) == (
         'Status is "Resolved" but there are no action items.'
     )
+
+
+# ---------------------------------------------------------------------------
+# LR080 UndeterminedSeverityLintRule
+# ---------------------------------------------------------------------------
+
+
+def test_undetermined_severity_passes_when_severity_set():
+    from iim.iim_lint import UndeterminedSeverityLintRule
+
+    report = IncidentReport(key="IIM-1", severity="S2")
+    assert UndeterminedSeverityLintRule().lint(report) is None
+
+
+def test_undetermined_severity_fails_when_severity_undetermined():
+    from iim.iim_lint import UndeterminedSeverityLintRule
+
+    report = IncidentReport(key="IIM-1", severity="undetermined")
+    assert UndeterminedSeverityLintRule().lint(report) == 'Severity is "undetermined".'
