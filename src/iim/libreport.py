@@ -18,12 +18,16 @@ ENTITY_BUCKET: dict[str, str] = json.loads(
 
 
 JIRA_KEY_RE = re.compile(r"https?://[^\s/]+/browse/([A-Z][A-Z0-9]+-\d+)")
+JIRA_KEY_BARE_RE = re.compile(r"^([A-Z][A-Z0-9]+-\d+)$")
 
 
 def jira_key(url: Optional[str]) -> Optional[str]:
     if not url:
         return None
     match = JIRA_KEY_RE.match(url)
+    if match:
+        return match[1]
+    match = JIRA_KEY_BARE_RE.match(url)
     if match:
         return match[1]
     return None
@@ -182,6 +186,14 @@ class IncidentReport:
         if not start_ts or not alerted:
             return None
         end_ts = arrow.get(alerted)
+        return end_ts - arrow.get(start_ts)
+
+    @property
+    def tt_responded(self) -> Optional[timedelta]:
+        start_ts = self.impact_start or self.detected
+        if not start_ts or not self.responded:
+            return None
+        end_ts = arrow.get(self.responded)
         return end_ts - arrow.get(start_ts)
 
     @property

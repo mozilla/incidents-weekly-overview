@@ -8,197 +8,22 @@ specified quarter.
 """
 
 import csv
-import dataclasses
 import json
 from importlib.resources import files as resources_files
 import os
-import statistics
 
 import arrow
 import click
 from dotenv import load_dotenv
 import rich
+from rich import box
 from rich.table import Table
 
 from iim.libjira import JiraAPI, fix_jira_incident_data
+from iim.libstats import mean_timedelta, build_period_stats, humanize_timedelta
 
 
 load_dotenv()
-
-
-@dataclasses.dataclass
-class Stats:
-    total: int = 0
-    severity_breakdown: dict = dataclasses.field(default_factory=dict)
-    detection_breakdown: dict = dataclasses.field(default_factory=dict)
-    tt_alerted: list[int] = dataclasses.field(default_factory=list)
-    tt_responded: list[int] = dataclasses.field(default_factory=list)
-    tt_mitigated: list[int] = dataclasses.field(default_factory=list)
-    entities: set = dataclasses.field(default_factory=set)
-    number_reviewed: int = 0
-    s1s2_reviewed: int = 0
-    s1s2_incidents: int = 0
-
-    @property
-    def s1s2_reviewed_pct(self) -> float:
-        all_s1s2 = self.s1 + self.s2
-        if all_s1s2 > 0:
-            return self.s1s2_reviewed / (self.s1 + self.s2) * 100
-        return 0.0
-
-    @property
-    def automation(self):
-        return len(self.detection_breakdown.get("Automation", []))
-
-    @property
-    def automation_pct(self):
-        return self.automation / self.total * 100
-
-    @property
-    def manual(self):
-        return len(self.detection_breakdown.get("Manual", []))
-
-    @property
-    def manual_pct(self):
-        return self.manual / self.total * 100
-
-    @property
-    def s1(self):
-        return len(self.severity_breakdown.get("S1", []))
-
-    @property
-    def s1_pct(self):
-        return self.s1 / self.total * 100
-
-    @property
-    def s2(self):
-        return len(self.severity_breakdown.get("S2", []))
-
-    @property
-    def s2_pct(self):
-        return self.s2 / self.total * 100
-
-    @property
-    def s3(self):
-        return len(self.severity_breakdown.get("S3", []))
-
-    @property
-    def s3_pct(self):
-        return self.s3 / self.total * 100
-
-    @property
-    def s4(self):
-        return len(self.severity_breakdown.get("S4", []))
-
-    @property
-    def s4_pct(self):
-        return self.s4 / self.total * 100
-
-    @property
-    def mtt_alerted(self):
-        return statistics.mean(self.tt_alerted)
-
-    @property
-    def mtt_responded(self):
-        return statistics.mean(self.tt_responded)
-
-    @property
-    def mtt_mitigated(self):
-        return statistics.mean(self.tt_mitigated)
-
-
-def humanize(total_minutes: int) -> str:
-    sign = "-" if total_minutes < 0 else ""
-    total_seconds = int(abs(total_minutes) * 60)
-
-    days, remainder = divmod(total_seconds, 86400)
-    hours, remainder = divmod(remainder, 3600)
-    minutes, seconds = divmod(remainder, 60)
-
-    parts = []
-    if days:
-        parts.append(f"{days:,}d")
-    if hours:
-        parts.append(f"{hours:,}h")
-    if minutes:
-        parts.append(f"{minutes:,}m")
-    if seconds or not parts:
-        parts.append(f"{seconds:,}s")
-
-    # Only take the two most significant parts
-    parts = parts[:2]
-
-    return sign + " ".join(parts)
-
-
-def get_review_stats(stats, date_start, date_end, incidents, review_data):
-    reviewed_keys = set()
-    for review_date, keys in review_data.items():
-        if date_start <= arrow.get(review_date) <= date_end:
-            reviewed_keys.update(keys)
-
-    stats.number_reviewed = len(reviewed_keys)
-    s1s2_reviewed_keys = [
-        incident.key
-        for incident in incidents
-        if incident.key in reviewed_keys and incident.severity in ("S1", "S2")
-    ]
-    stats.s1s2_reviewed = len(s1s2_reviewed_keys)
-    return stats
-
-
-def get_stats(incidents):
-    stats = Stats()
-
-    stats.total = len(incidents)
-
-    for incident in incidents:
-        # Drop items with no impact_start
-        if incident.impact_start is None:
-            continue
-
-        impact_start = arrow.get(incident.impact_start)
-
-        # Drop extreme response times
-        if (
-            incident.responded
-            and (arrow.get(incident.responded) - impact_start).total_seconds() > 1800000
-        ):
-            click.echo(
-                f"Error: {incident.key} {incident.summary!r} has excessive response time: {arrow.get(incident.responded) - impact_start}"
-            )
-            continue
-
-        stats.severity_breakdown.setdefault(incident.severity, []).append(incident)
-        stats.detection_breakdown.setdefault(incident.detection_method, []).append(
-            incident
-        )
-        alerted = incident.alerted or incident.detected
-        if alerted is not None:
-            stats.tt_alerted.append(
-                int((arrow.get(alerted) - impact_start).total_seconds() / 60)
-            )
-
-        if incident.responded is not None:
-            stats.tt_responded.append(
-                int((arrow.get(incident.responded) - impact_start).total_seconds() / 60)
-            )
-
-        if incident.mitigated is not None:
-            stats.tt_mitigated.append(
-                int((arrow.get(incident.mitigated) - impact_start).total_seconds() / 60)
-            )
-
-        if incident.entities:
-            stats.entities.update(
-                [entity.lower().strip() for entity in incident.entities.split(", ")]
-            )
-
-    stats.s1s2_incidents = len(stats.severity_breakdown.get("S1", [])) + len(
-        stats.severity_breakdown.get("S2", [])
-    )
-
-    return stats
 
 
 def get_start_end(year, quarter):
@@ -222,173 +47,97 @@ def get_start_end(year, quarter):
 def pct_change(a, b):
     if a == 0:
         return -1
-
     return (b - a) / a * 100
 
 
-def build_stats_table(title, stats, period, previous_stats=None, previous_period=None):
-    table = Table(title=title)
+def count_reviewed(date_start, date_end, review_data):
+    """Count unique incident keys reviewed in meetings within [date_start, date_end]."""
+    reviewed = set()
+    for review_date, keys in review_data.items():
+        if date_start <= arrow.get(review_date) <= date_end:
+            reviewed.update(keys)
+    return len(reviewed)
 
-    if previous_stats and previous_period:
+
+def s1s2_reviewed_pct(date_start, date_end, incidents, review_data):
+    """Return % of S1/S2 incidents reviewed in meetings within [date_start, date_end]."""
+    reviewed = set()
+    for review_date, keys in review_data.items():
+        if date_start <= arrow.get(review_date) <= date_end:
+            reviewed.update(keys)
+    s1s2 = [i for i in incidents if i.severity in ("S1", "S2")]
+    if not s1s2:
+        return 0.0
+    return sum(1 for i in s1s2 if i.key in reviewed) / len(s1s2) * 100
+
+
+def td_pct_change(a, b):
+    """Return formatted pct change between two timedeltas, or '' if either is None."""
+    if a is None or b is None:
+        return ""
+    a_s = a.total_seconds()
+    if a_s == 0:
+        return ""
+    return f"{pct_change(a_s, b.total_seconds()):2.2f}%"
+
+
+def build_table(quarter, rows, prev_quarter=None, fmt="table"):
+    """
+    Build a Rich Table from pre-computed row tuples.
+
+    rows: list of (label, curr_str) when prev_quarter is None,
+          or (label, prev_str, curr_str, pct_change_str) when prev_quarter is given.
+    """
+    table_box = box.MARKDOWN if fmt == "markdown" else None
+    table = Table(box=table_box)
+    if prev_quarter:
         table.add_column("key")
-        table.add_column(previous_period)
-        table.add_column(period)
+        table.add_column(prev_quarter)
+        table.add_column(quarter)
         table.add_column("% change")
-
-        table.add_row(
-            "Total incidents",
-            str(previous_stats.total),
-            str(stats.total),
-            f"{pct_change(previous_stats.total, stats.total):2.2f}%",
-        )
-        table.add_row(
-            "Severity: S1",
-            f"{previous_stats.s1:<3}  {previous_stats.s1_pct:2.2f}%",
-            f"{stats.s1:<3}  {stats.s1_pct:2.2f}%",
-            f"{pct_change(previous_stats.s1, stats.s1):2.2f}%",
-        )
-        table.add_row(
-            "Severity: S2",
-            f"{previous_stats.s2:<3}  {previous_stats.s2_pct:2.2f}%",
-            f"{stats.s2:<3}  {stats.s2_pct:2.2f}%",
-            f"{pct_change(previous_stats.s2, stats.s2):2.2f}%",
-        )
-        table.add_row(
-            "Severity: S3",
-            f"{previous_stats.s3:<3}  {previous_stats.s3_pct:2.2f}%",
-            f"{stats.s3:<3}  {stats.s3_pct:2.2f}%",
-            f"{pct_change(previous_stats.s3, stats.s3):2.2f}%",
-        )
-        table.add_row(
-            "Severity: S4",
-            f"{previous_stats.s4:<3}  {previous_stats.s4_pct:2.2f}%",
-            f"{stats.s4:<3}  {stats.s4_pct:2.2f}%",
-            f"{pct_change(previous_stats.s4, stats.s4):2.2f}%",
-        )
-        table.add_row(
-            "Number reviewed",
-            str(previous_stats.number_reviewed),
-            str(stats.number_reviewed),
-            f"{pct_change(previous_stats.number_reviewed, stats.number_reviewed):2.2f}%",
-        )
-        table.add_row(
-            "Percent S1/S2 reviewed",
-            f"{previous_stats.s1s2_reviewed_pct:2.2f}%",
-            f"{stats.s1s2_reviewed_pct:2.2f}%",
-            f"{pct_change(previous_stats.s1s2_reviewed_pct, stats.s1s2_reviewed_pct):2.2f}%"
-            "",
-        )
-        table.add_row(
-            "Impacted entities",
-            str(len(previous_stats.entities)),
-            str(len(stats.entities)),
-            f"{pct_change(len(previous_stats.entities), len(stats.entities)):2.2f}%",
-        )
-        table.add_row(
-            "Detection by automation",
-            f"{previous_stats.automation} ({previous_stats.automation_pct:2.2f}%)",
-            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
-            f"{pct_change(previous_stats.automation, stats.automation):2.2f}%",
-        )
-        table.add_row(
-            "Detection by manual",
-            f"{previous_stats.manual} ({previous_stats.manual_pct:2.2f}%)",
-            f"{stats.manual} ({stats.manual_pct:2.2f}%)",
-            f"{pct_change(previous_stats.manual, stats.manual):2.2f}%",
-        )
-        table.add_row(
-            "MTT alerted",
-            humanize(previous_stats.mtt_alerted),
-            humanize(stats.mtt_alerted),
-            f"{pct_change(previous_stats.mtt_alerted, stats.mtt_alerted):2.2f}%",
-        )
-        table.add_row(
-            "MTT responded",
-            humanize(previous_stats.mtt_responded),
-            humanize(stats.mtt_responded),
-            f"{pct_change(previous_stats.mtt_responded, stats.mtt_responded):2.2f}%",
-        )
-        table.add_row(
-            "MTT mitigated",
-            humanize(previous_stats.mtt_mitigated),
-            humanize(stats.mtt_mitigated),
-            f"{pct_change(previous_stats.mtt_mitigated, stats.mtt_mitigated):2.2f}%",
-        )
-
     else:
         table.add_column("key")
-        table.add_column(period)
-
-        table.add_row("Total incidents", str(stats.total))
-        table.add_row("Severity: S1", f"{stats.s1:<3}  {stats.s1_pct:2.2f}%")
-        table.add_row("Severity: S2", f"{stats.s2:<3}  {stats.s2_pct:2.2f}%")
-        table.add_row("Severity: S3", f"{stats.s3:<3}  {stats.s3_pct:2.2f}%")
-        table.add_row("Severity: S4", f"{stats.s4:<3}  {stats.s4_pct:2.2f}%")
-        table.add_row("Number reviewed", str(stats.number_reviewed))
-        table.add_row(
-            "Percent S1/S2 reviewed",
-            f"{(stats.s1s2_reviewed / stats.s1s2_incidents) * 100:2.2f}%",
-        )
-        table.add_row("Impacted entities", str(len(stats.entities)))
-        table.add_row(
-            "Detection by automation",
-            f"{stats.automation} ({stats.automation_pct:2.2f}%)",
-        )
-        table.add_row(
-            "Detection by manual", f"{stats.manual} ({stats.manual_pct:2.2f}%)"
-        )
-        table.add_row("MTT alerted", humanize(stats.mtt_alerted))
-        table.add_row("MTT responded", humanize(stats.mtt_responded))
-        table.add_row("MTT mitigated", humanize(stats.mtt_mitigated))
-
+        table.add_column(quarter)
+    for row in rows:
+        table.add_row(*row)
     return table
 
 
 @click.command()
-@click.argument("period")
+@click.argument("quarter")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["table", "markdown"]),
+    default="table",
+    show_default=True,
+    help="Output format.",
+)
 @click.pass_context
-def iim_qbr(ctx, period):
+def iim_qbr(ctx, quarter, fmt):
     """
     Computes stats for the IIM Jira project for incidents declared in the
     specified quarter.
 
-    PERIOD can be one of:
-
-    \b
-    * "all" for all data
-    * "YYYY" for all the data in a specific year
-    * "YYYYqN" for all the data in a specific year and quarter
+    QUARTER must be in YYYYqN form, e.g. 2025q4.
 
     See `README.md` for setup instructions.
     """
+    quarter = quarter.strip()
+    if "q" not in quarter:
+        raise click.BadParameter("QUARTER must be in YYYYqN form, e.g. 2025q4")
 
-    date_start = date_end = None
-    previous_start = previous_end = None
-    previous_period = None
+    year_str, quarter_str = quarter.split("q")
+    year = int(year_str)
+    q = int(quarter_str)
 
-    period = period.strip()
-    if period == "all":
-        pass
-
-    elif "q" in period:
-        year, quarter = period.split("q")
-        year = int(year)
-        quarter = int(quarter)
-
-        date_start, date_end = get_start_end(year, quarter)
-        if quarter == 1:
-            previous_year = year - 1
-            previous_quarter = 4
-        else:
-            previous_year = year
-            previous_quarter = quarter - 1
-        previous_start, previous_end = get_start_end(previous_year, previous_quarter)
-        previous_period = f"{previous_year}q{previous_quarter}"
-
+    date_start, date_end = get_start_end(year, q)
+    if q == 1:
+        prev_year, prev_q = year - 1, 4
     else:
-        year = period
-        date_start = arrow.get(f"{year}-01-01 00:00:00")
-        date_end = arrow.get(f"{year}-12-31 23:59:59")
+        prev_year, prev_q = year, q - 1
+    prev_start, prev_end = get_start_end(prev_year, prev_q)
+    prev_quarter = f"{prev_year}q{prev_q}"
 
     review_data = json.loads(
         (resources_files("iim") / "data" / "monthly_review_data.json").read_text()
@@ -406,94 +155,46 @@ def iim_qbr(ctx, period):
         for issue in issue_data
     ]
 
-    if period != "all":
-        previous_incidents = [
-            incident
-            for incident in incidents
-            if incident.declare_date
-            and previous_start <= arrow.get(incident.declare_date) <= previous_end
+    def filter_by_range(incident_list, start, end):
+        return [
+            i
+            for i in incident_list
+            if i.declare_date and start <= arrow.get(i.declare_date) <= end
         ]
-        these_incidents = [
-            incident
-            for incident in incidents
-            if incident.declare_date
-            and date_start <= arrow.get(incident.declare_date) <= date_end
-        ]
-
-    click.echo("Determining statistics data...")
 
     def by_bucket(incident_list, bucket):
         return [i for i in incident_list if i.entities and i.entity_bucket == bucket]
 
     click.echo("Getting statistics...")
-    stats = get_stats(these_incidents)
-    stats = get_review_stats(
-        stats=stats,
-        date_start=date_start,
-        date_end=date_end,
-        incidents=incidents,
-        review_data=review_data,
-    )
-    service_stats = get_stats(by_bucket(these_incidents, "service"))
-    service_stats = get_review_stats(
-        stats=service_stats,
-        date_start=date_start,
-        date_end=date_end,
-        incidents=by_bucket(incidents, "service"),
-        review_data=review_data,
-    )
-    product_stats = get_stats(by_bucket(these_incidents, "product"))
-    product_stats = get_review_stats(
-        stats=product_stats,
-        date_start=date_start,
-        date_end=date_end,
-        incidents=by_bucket(incidents, "product"),
-        review_data=review_data,
+
+    these = filter_by_range(incidents, date_start, date_end)
+    prev = filter_by_range(incidents, prev_start, prev_end)
+
+    start_str = date_start.strftime("%Y-%m-%d")
+    end_str = date_end.strftime("%Y-%m-%d")
+    prev_start_str = prev_start.strftime("%Y-%m-%d")
+    prev_end_str = prev_end.strftime("%Y-%m-%d")
+
+    stats = build_period_stats(these, start_str, end_str)
+    prev_stats = build_period_stats(prev, prev_start_str, prev_end_str)
+
+    service_stats = build_period_stats(by_bucket(these, "service"), start_str, end_str)
+    prev_service_stats = build_period_stats(
+        by_bucket(prev, "service"), prev_start_str, prev_end_str
     )
 
-    if previous_start:
-        click.echo("Getting statistics for previous period...")
-        previous_stats = get_stats(previous_incidents)
-        previous_stats = get_review_stats(
-            stats=previous_stats,
-            date_start=previous_start,
-            date_end=previous_end,
-            incidents=incidents,
-            review_data=review_data,
-        )
-        previous_service_stats = get_stats(by_bucket(previous_incidents, "service"))
-        previous_service_stats = get_review_stats(
-            stats=previous_service_stats,
-            date_start=previous_start,
-            date_end=previous_end,
-            incidents=by_bucket(incidents, "service"),
-            review_data=review_data,
-        )
-        previous_product_stats = get_stats(by_bucket(previous_incidents, "product"))
-        previous_product_stats = get_review_stats(
-            stats=previous_product_stats,
-            date_start=previous_start,
-            date_end=previous_end,
-            incidents=by_bucket(incidents, "product"),
-            review_data=review_data,
-        )
+    product_stats = build_period_stats(by_bucket(these, "product"), start_str, end_str)
+    prev_product_stats = build_period_stats(
+        by_bucket(prev, "product"), prev_start_str, prev_end_str
+    )
 
     click.echo()
-
-    if period == "all":
-        click.echo("Looking at: all data")
-    else:
-        assert date_start is not None
-        assert date_end is not None
-        click.echo(
-            f"Looking at: {date_start.strftime('%Y-%m-%d')} to {date_end.strftime('%Y-%m-%d')}"
-        )
-
+    click.echo(f"QBR metrics {quarter}: {start_str} to {end_str}")
     click.echo()
 
-    with open(f"qbr_stats_{period}.csv", "w") as fp:
+    with open(f"qbr_stats_{quarter}.csv", "w") as fp:
         writer = csv.writer(fp)
-        for incident in incidents:
+        for incident in these:
             writer.writerow(
                 [
                     incident.key,
@@ -507,36 +208,174 @@ def iim_qbr(ctx, period):
                 ]
             )
 
-    if previous_start:
-        assert previous_period is not None
-        rich.print(
-            build_stats_table(
-                "All incidents",
-                stats,
-                period,
-                previous_stats=previous_stats,
-                previous_period=previous_period,
-            )
+    curr_reviewed = count_reviewed(date_start, date_end, review_data)
+    prev_reviewed = count_reviewed(prev_start, prev_end, review_data)
+    curr_s1s2_pct = s1s2_reviewed_pct(
+        date_start, date_end, by_bucket(these, "service"), review_data
+    )
+    prev_s1s2_pct = s1s2_reviewed_pct(
+        prev_start, prev_end, by_bucket(prev, "service"), review_data
+    )
+
+    def auto_pct(incident_list):
+        known = [
+            i for i in incident_list if i.detection_method in ("Manual", "Automation")
+        ]
+        if not known:
+            return 0.0
+        return (
+            sum(1 for i in known if i.detection_method == "Automation")
+            / len(known)
+            * 100
         )
-        rich.print(
-            build_stats_table(
-                "Service incidents",
-                service_stats,
-                period,
-                previous_stats=previous_service_stats,
-                previous_period=previous_period,
+
+    all_auto_prev = auto_pct(prev)
+    all_auto_curr = auto_pct(these)
+    all_mtt_alerted_prev = mean_timedelta([i.tt_alerted for i in prev])
+    all_mtt_alerted_curr = mean_timedelta([i.tt_alerted for i in these])
+    all_mtt_responded_prev = mean_timedelta([i.tt_responded for i in prev])
+    all_mtt_responded_curr = mean_timedelta([i.tt_responded for i in these])
+    all_mtt_mitigated_prev = mean_timedelta([i.tt_mitigated for i in prev])
+    all_mtt_mitigated_curr = mean_timedelta([i.tt_mitigated for i in these])
+
+    svc_auto_prev = prev_service_stats.service_detection_method_counts.get(
+        "Automation", 0.0
+    )
+    svc_auto_curr = service_stats.service_detection_method_counts.get("Automation", 0.0)
+    prod_auto_prev = prev_product_stats.product_detection_method_counts.get(
+        "Automation", 0.0
+    )
+    prod_auto_curr = product_stats.product_detection_method_counts.get(
+        "Automation", 0.0
+    )
+    prod_manual_prev = prev_product_stats.product_detection_method_counts.get(
+        "Manual", 0.0
+    )
+    prod_manual_curr = product_stats.product_detection_method_counts.get("Manual", 0.0)
+
+    rows = [
+        (
+            "Total incidents",
+            str(prev_stats.total_incidents),
+            str(stats.total_incidents),
+            f"{pct_change(prev_stats.total_incidents, stats.total_incidents):2.2f}%",
+        ),
+        *(
+            (
+                f"Severity: {sev}",
+                f"{prev_stats.severity_counts[sev]:2.2f}%",
+                f"{stats.severity_counts[sev]:2.2f}%",
+                f"{pct_change(prev_stats.severity_counts[sev], stats.severity_counts[sev]):2.2f}%",
             )
-        )
-        rich.print(
-            build_stats_table(
-                "Product incidents",
-                product_stats,
-                period,
-                previous_stats=previous_product_stats,
-                previous_period=previous_period,
-            )
-        )
-    else:
-        rich.print(build_stats_table("All incidents", stats, period))
-        rich.print(build_stats_table("Service incidents", service_stats, period))
-        rich.print(build_stats_table("Product incidents", product_stats, period))
+            for sev in ("S1", "S2", "S3", "S4")
+        ),
+        (
+            "Impacted entities",
+            str(prev_stats.total_entities),
+            str(stats.total_entities),
+            f"{pct_change(prev_stats.total_entities, stats.total_entities):2.2f}%",
+        ),
+        (
+            "Incidents reviewed",
+            str(prev_reviewed),
+            str(curr_reviewed),
+            f"{pct_change(prev_reviewed, curr_reviewed):2.2f}%",
+        ),
+        (
+            "Service S1/S2 incidents reviewed",
+            f"{prev_s1s2_pct:2.2f}%",
+            f"{curr_s1s2_pct:2.2f}%",
+            f"{pct_change(prev_s1s2_pct, curr_s1s2_pct):2.2f}%",
+        ),
+        (
+            "Detection: automation",
+            f"{all_auto_prev:2.2f}%",
+            f"{all_auto_curr:2.2f}%",
+            f"{pct_change(all_auto_prev, all_auto_curr):2.2f}%",
+        ),
+        (
+            "MTT alerted",
+            humanize_timedelta(all_mtt_alerted_prev),
+            humanize_timedelta(all_mtt_alerted_curr),
+            td_pct_change(all_mtt_alerted_prev, all_mtt_alerted_curr),
+        ),
+        (
+            "MTT responded",
+            humanize_timedelta(all_mtt_responded_prev),
+            humanize_timedelta(all_mtt_responded_curr),
+            td_pct_change(all_mtt_responded_prev, all_mtt_responded_curr),
+        ),
+        (
+            "MTT mitigated",
+            humanize_timedelta(all_mtt_mitigated_prev),
+            humanize_timedelta(all_mtt_mitigated_curr),
+            td_pct_change(all_mtt_mitigated_prev, all_mtt_mitigated_curr),
+        ),
+        (
+            "Service: total incidents",
+            str(prev_service_stats.total_incidents),
+            str(service_stats.total_incidents),
+            f"{pct_change(prev_service_stats.total_incidents, service_stats.total_incidents):2.2f}%",
+        ),
+        (
+            "Service: detection automation",
+            f"{svc_auto_prev:2.2f}%",
+            f"{svc_auto_curr:2.2f}%",
+            f"{pct_change(svc_auto_prev, svc_auto_curr):2.2f}%",
+        ),
+        (
+            "Service: MTT alerted",
+            humanize_timedelta(prev_service_stats.service_mean_tt_alert),
+            humanize_timedelta(service_stats.service_mean_tt_alert),
+            td_pct_change(
+                prev_service_stats.service_mean_tt_alert,
+                service_stats.service_mean_tt_alert,
+            ),
+        ),
+        (
+            "Service: MTT mitigated",
+            humanize_timedelta(prev_service_stats.service_mean_tt_mit),
+            humanize_timedelta(service_stats.service_mean_tt_mit),
+            td_pct_change(
+                prev_service_stats.service_mean_tt_mit,
+                service_stats.service_mean_tt_mit,
+            ),
+        ),
+        (
+            "Product: total incidents",
+            str(prev_product_stats.total_incidents),
+            str(product_stats.total_incidents),
+            f"{pct_change(prev_product_stats.total_incidents, product_stats.total_incidents):2.2f}%",
+        ),
+        (
+            "Product: detection automation",
+            f"{prod_auto_prev:2.2f}%",
+            f"{prod_auto_curr:2.2f}%",
+            f"{pct_change(prod_auto_prev, prod_auto_curr):2.2f}%",
+        ),
+        (
+            "Product: detection manual",
+            f"{prod_manual_prev:2.2f}%",
+            f"{prod_manual_curr:2.2f}%",
+            f"{pct_change(prod_manual_prev, prod_manual_curr):2.2f}%",
+        ),
+        (
+            "Product: MTT alerted",
+            humanize_timedelta(prev_product_stats.product_mean_tt_alert),
+            humanize_timedelta(product_stats.product_mean_tt_alert),
+            td_pct_change(
+                prev_product_stats.product_mean_tt_alert,
+                product_stats.product_mean_tt_alert,
+            ),
+        ),
+        (
+            "Product: MTT mitigated",
+            humanize_timedelta(prev_product_stats.product_mean_tt_mit),
+            humanize_timedelta(product_stats.product_mean_tt_mit),
+            td_pct_change(
+                prev_product_stats.product_mean_tt_mit,
+                product_stats.product_mean_tt_mit,
+            ),
+        ),
+    ]
+    rich.print(build_table(quarter, rows, prev_quarter, fmt))

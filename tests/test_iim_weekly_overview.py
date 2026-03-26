@@ -7,12 +7,12 @@ from datetime import timedelta
 import pytest
 from pytest import approx
 
-from iim.iim_weekly_overview import (
-    _build_period_stats,
-    _mean_timedelta,
-    compute_trends_summary,
+from iim.iim_weekly_overview import friendly_date
+from iim.libstats import (
+    mean_timedelta,
+    build_period_stats,
+    compute_period_comparison,
     direction,
-    friendly_date,
 )
 from iim.libreport import IncidentReport
 
@@ -54,7 +54,7 @@ def make_incident(**kwargs):
 
 
 # ---------------------------------------------------------------------------
-# _mean_timedelta
+# mean_timedelta
 # ---------------------------------------------------------------------------
 
 
@@ -70,7 +70,7 @@ def make_incident(**kwargs):
     ],
 )
 def test_mean_timedelta(values, expected):
-    assert _mean_timedelta(values) == expected
+    assert mean_timedelta(values) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ def test_mean_timedelta(values, expected):
 
 
 @pytest.mark.parametrize(
-    "prior,recent,expected",
+    "prior,current,expected",
     [
         (None, None, "same"),
         (None, 5, "same"),
@@ -94,17 +94,17 @@ def test_mean_timedelta(values, expected):
         (None, timedelta(hours=2), "same"),
     ],
 )
-def test_direction(prior, recent, expected):
-    assert direction(prior, recent) == expected
+def test_direction(prior, current, expected):
+    assert direction(prior, current) == expected
 
 
 # ---------------------------------------------------------------------------
-# _build_period_stats
+# build_period_stats
 # ---------------------------------------------------------------------------
 
 
 def test_build_period_stats_empty():
-    stats = _build_period_stats([], "2026-01-01", "2026-02-12")
+    stats = build_period_stats([], "2026-01-01", "2026-02-12")
     assert stats.total_incidents == 0
     assert stats.top_entities == []
     assert stats.severity_counts == {"S1": 0.0, "S2": 0.0, "S3": 0.0, "S4": 0.0}
@@ -124,7 +124,7 @@ def test_build_period_stats_empty():
 
 def test_build_period_stats_total():
     incidents = [make_incident(key=f"IIM-{i}") for i in range(5)]
-    stats = _build_period_stats(incidents, "2026-01-01", "2026-02-12")
+    stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
     assert stats.total_incidents == 5
 
 
@@ -135,7 +135,7 @@ def test_build_period_stats_total_entities():
         make_incident(key="IIM-3", entities="unknown"),  # excluded
         make_incident(key="IIM-4", entities=None),  # excluded
     ]
-    stats = _build_period_stats(incidents, "2026-01-01", "2026-02-12")
+    stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
     assert stats.total_entities == 2  # auth, payments
 
 
@@ -159,14 +159,14 @@ def test_build_period_stats_top_entities(entities, expected_top):
     incidents = [
         make_incident(key=f"IIM-{i}", entities=e) for i, e in enumerate(entities)
     ]
-    stats = _build_period_stats(incidents, "2026-01-01", "2026-02-12")
+    stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
     assert stats.top_entities == expected_top
 
 
 def test_build_period_stats_top_entities_multi_entity():
     # one incident with two entities counts once per entity
     incidents = [make_incident(entities="payments, auth")]
-    stats = _build_period_stats(incidents, "2026-01-01", "2026-02-12")
+    stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
     assert ("payments", 1) in stats.top_entities
     assert ("auth", 1) in stats.top_entities
 
@@ -196,7 +196,7 @@ def test_build_period_stats_severity_counts(severities, expected):
     incidents = [
         make_incident(key=f"IIM-{i}", severity=s) for i, s in enumerate(severities)
     ]
-    stats = _build_period_stats(incidents, "2026-01-01", "2026-02-12")
+    stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
     assert stats.severity_counts == expected
 
 
@@ -227,7 +227,7 @@ def test_build_period_stats_status_counts(statuses, expected):
         )
         for i, s in enumerate(statuses)
     ]
-    stats = _build_period_stats(incidents, "2026-01-01", "2026-02-12")
+    stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
     assert stats.status_counts == expected
 
 
@@ -245,7 +245,7 @@ def test_build_period_stats_tt_res_resolved_only():
         impact_start="2026-01-15 10:00",
         resolved="2026-01-15 16:00",
     )
-    stats = _build_period_stats(
+    stats = build_period_stats(
         [resolved_incident, not_resolved_incident], "2026-01-01", "2026-02-12"
     )
     # only resolved_incident contributes: 4h
@@ -279,14 +279,14 @@ def test_build_period_stats_mean_action_items():
     # resolved but action_items=None — excluded from mean
     resolved_none = make_incident(key="IIM-4", status="Resolved", action_items=None)
 
-    stats = _build_period_stats(
+    stats = build_period_stats(
         [resolved_2, resolved_4, active, resolved_none], "2026-01-01", "2026-02-12"
     )
     assert stats.mean_action_items == 3.0  # (2 + 4) / 2
 
 
 def test_build_period_stats_mean_action_items_none_when_no_resolved():
-    stats = _build_period_stats(
+    stats = build_period_stats(
         [make_incident(status="InProgress", action_items=None)],
         "2026-01-01",
         "2026-02-12",
@@ -308,7 +308,7 @@ def test_build_period_stats_entity_bucket_split():
         impact_start="2026-01-15 10:00",
         mitigated="2026-01-15 13:00",
     )
-    stats = _build_period_stats(
+    stats = build_period_stats(
         [service_incident, product_incident], "2026-01-01", "2026-02-12"
     )
     assert stats.service_mean_tt_mit == timedelta(hours=2)
@@ -316,55 +316,68 @@ def test_build_period_stats_entity_bucket_split():
 
 
 # ---------------------------------------------------------------------------
-# compute_trends_summary
+# compute_period_comparison
 # ---------------------------------------------------------------------------
 
 
-def test_compute_trends_summary_period_boundaries():
-    # this_friday=2026-03-27: recent 2026-02-13..2026-03-27, prior 2026-01-02..2026-02-13
-    summary = compute_trends_summary([], "2026-03-27")
-    assert summary.recent.start == "2026-02-13"
-    assert summary.recent.end == "2026-03-27"
-    assert summary.prior.start == "2026-01-02"
-    assert summary.prior.end == "2026-02-13"
+def test_compute_period_comparison_period_boundaries():
+    # this_friday=2026-03-27: current 2026-02-13..2026-03-27, prior 2026-01-02..2026-02-13
+    comparison = compute_period_comparison(
+        [], "2026-02-13", "2026-03-27", "2026-01-02", "2026-02-13"
+    )
+    assert comparison.current.start == "2026-02-13"
+    assert comparison.current.end == "2026-03-27"
+    assert comparison.prior.start == "2026-01-02"
+    assert comparison.prior.end == "2026-02-13"
 
 
-def test_compute_trends_summary_period_filtering():
-    # this_friday=2026-03-27: recent 2026-02-13..2026-03-27, prior 2026-01-02..2026-02-13
-    recent_incident = make_incident(key="IIM-1", declare_date="2026-03-01")
+def test_compute_period_comparison_period_filtering():
+    # current 2026-02-13..2026-03-27, prior 2026-01-02..2026-02-13
+    current_incident = make_incident(key="IIM-1", declare_date="2026-03-01")
     prior_incident = make_incident(key="IIM-2", declare_date="2026-01-15")
     outside_incident = make_incident(key="IIM-3", declare_date="2025-12-01")
     no_date_incident = make_incident(key="IIM-4", declare_date=None)
 
-    summary = compute_trends_summary(
-        [recent_incident, prior_incident, outside_incident, no_date_incident],
+    comparison = compute_period_comparison(
+        [current_incident, prior_incident, outside_incident, no_date_incident],
+        "2026-02-13",
         "2026-03-27",
+        "2026-01-02",
+        "2026-02-13",
     )
-    assert summary.recent.total_incidents == 1
-    assert summary.prior.total_incidents == 1
+    assert comparison.current.total_incidents == 1
+    assert comparison.prior.total_incidents == 1
 
 
-def test_compute_trends_summary_boundary_inclusive_start():
-    # incident exactly on recent_start belongs to recent, not prior
-    summary = compute_trends_summary(
+def test_compute_period_comparison_boundary_inclusive_start():
+    # incident exactly on current_start belongs to current, not prior
+    comparison = compute_period_comparison(
         [make_incident(key="IIM-1", declare_date="2026-02-13")],
+        "2026-02-13",
         "2026-03-27",
+        "2026-01-02",
+        "2026-02-13",
     )
-    assert summary.recent.total_incidents == 1
-    assert summary.prior.total_incidents == 0
+    assert comparison.current.total_incidents == 1
+    assert comparison.prior.total_incidents == 0
 
 
-def test_compute_trends_summary_boundary_exclusive_end():
-    # incident on this_friday belongs to neither period (end is exclusive)
-    summary = compute_trends_summary(
+def test_compute_period_comparison_boundary_exclusive_end():
+    # incident on current_end belongs to neither period (end is exclusive)
+    comparison = compute_period_comparison(
         [make_incident(key="IIM-1", declare_date="2026-03-27")],
+        "2026-02-13",
         "2026-03-27",
+        "2026-01-02",
+        "2026-02-13",
     )
-    assert summary.recent.total_incidents == 0
-    assert summary.prior.total_incidents == 0
+    assert comparison.current.total_incidents == 0
+    assert comparison.prior.total_incidents == 0
 
 
-def test_compute_trends_summary_empty():
-    summary = compute_trends_summary([], "2026-03-27")
-    assert summary.recent.total_incidents == 0
-    assert summary.prior.total_incidents == 0
+def test_compute_period_comparison_empty():
+    comparison = compute_period_comparison(
+        [], "2026-02-13", "2026-03-27", "2026-01-02", "2026-02-13"
+    )
+    assert comparison.current.total_incidents == 0
+    assert comparison.prior.total_incidents == 0
