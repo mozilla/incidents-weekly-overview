@@ -77,6 +77,12 @@ class PeriodStats:
     status_counts: dict[
         str, float
     ]  # {"Detected": %, "InProgress": %, "Mitigated": %, "Resolved": %} as 0-100
+    service_detection_method_counts: dict[
+        str, float
+    ]  # {"Manual": %, "Automation": %} as 0-100, excludes unknown, service bucket only
+    product_detection_method_counts: dict[
+        str, float
+    ]  # {"Manual": %, "Automation": %} as 0-100, excludes unknown, product bucket only
     service_mean_tt_dec: Optional[timedelta]
     service_mean_tt_alert: Optional[timedelta]
     service_mean_tt_mit: Optional[timedelta]
@@ -173,6 +179,18 @@ def _build_period_stats(incidents, start: str, end: str) -> PeriodStats:
     # TT means by entity_bucket
     service = [i for i in incidents if i.entity_bucket == "service"]
     product = [i for i in incidents if i.entity_bucket == "product"]
+
+    # detection method percentages by bucket, excluding unknown
+    def _detection_counts(bucket):
+        known = [i for i in bucket if i.detection_method in ("Manual", "Automation")]
+        n = len(known)
+        raw = {"Manual": 0, "Automation": 0}
+        for i in known:
+            raw[i.detection_method] += 1
+        return {k: (v / n * 100) if n else 0.0 for k, v in raw.items()}
+
+    service_detection_method_counts = _detection_counts(service)
+    product_detection_method_counts = _detection_counts(product)
     service_resolved = [i for i in service if i.status == "Resolved"]
     product_resolved = [i for i in product if i.status == "Resolved"]
 
@@ -194,6 +212,8 @@ def _build_period_stats(incidents, start: str, end: str) -> PeriodStats:
         top_entities=top_entities,
         severity_counts=severity_counts,
         status_counts=status_counts,
+        service_detection_method_counts=service_detection_method_counts,
+        product_detection_method_counts=product_detection_method_counts,
         mean_action_items=mean_action_items,
         service_mean_tt_dec=_mean_timedelta([i.tt_declared for i in service]),
         service_mean_tt_alert=_mean_timedelta([i.tt_alerted for i in service]),
