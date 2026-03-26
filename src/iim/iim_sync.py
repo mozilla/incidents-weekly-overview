@@ -47,24 +47,26 @@ load_dotenv()
     is_flag=True,
     help="Show diff but do not push changes to Jira",
 )
-@click.argument("jira_urls", nargs=-1)
-def iim_sync(client_secret_file: str, dry_run: bool, jira_urls: tuple[str, ...]):
+@click.argument("url_or_key", nargs=-1)
+def iim_sync(client_secret_file: str, dry_run: bool, url_or_key: tuple[str, ...]):
     """
     Sync Jira incident issues with their Google Doc incident reports.
 
-    JIRA_URLS are full Jira issue browse URLs, e.g.
-    https://mozilla-hub.atlassian.net/browse/IIM-131
+    URL_OR_KEY are full Jira issue browse URLs or bare issue keys, e.g.
+    https://mozilla-hub.atlassian.net/browse/IIM-131 or IIM-131
 
     If not provided as arguments, URLs are read one per line from stdin.
 
     See `README.md` for setup instructions.
     """
-    if jira_urls:
-        urls = list(jira_urls)
+    if url_or_key:
+        urls = list(url_or_key)
     elif not click.get_text_stream("stdin").isatty():
         urls = [line.strip() for line in click.get_text_stream("stdin") if line.strip()]
     else:
-        raise click.UsageError("Provide JIRA_URLS as arguments or pipe them via stdin.")
+        raise click.UsageError(
+            "Provide URL_OR_KEY as arguments or pipe them via stdin."
+        )
 
     jira_client = JiraAPI(
         base_url=os.environ["JIRA_URL"].strip(),
