@@ -17,6 +17,8 @@ from iim.libreport import ActionItem, IncidentReport, bugzilla_id, github_id, ji
     [
         ("https://jira.example.net/browse/IIM-42", "IIM-42"),
         ("https://jira.example.net/browse/PROJ-123", "PROJ-123"),
+        ("IIM-42", "IIM-42"),
+        ("PROJ-123", "PROJ-123"),
         ("https://example.com/not/a/jira/url", None),
         ("", None),
         (None, None),
