@@ -5,6 +5,7 @@
 import pytest
 
 from iim.iim_lint import (
+    FutureTimestampLintRule,
     MismatchedDeclareDateLintRule,
     MissingActionItemsLintRule,
     MissingDatesLintRule,
@@ -281,3 +282,59 @@ def test_undetermined_severity_fails_when_severity_undetermined():
 
     report = IncidentReport(key="IIM-1", severity="undetermined")
     assert UndeterminedSeverityLintRule().lint(report) == 'Severity is "undetermined".'
+
+
+# ---------------------------------------------------------------------------
+# LR090 FutureTimestampLintRule
+# ---------------------------------------------------------------------------
+
+PAST = "2026-01-01 10:00"
+FUTURE = "2099-01-01 00:00"
+FUTURE_DATE = "2099-01-01"
+
+
+def test_future_timestamp_passes_when_all_fields_none():
+    report = IncidentReport(key="IIM-1")
+    assert FutureTimestampLintRule().lint(report) is None
+
+
+def test_future_timestamp_passes_when_all_fields_in_past():
+    report = IncidentReport(
+        key="IIM-1",
+        declare_date="2026-01-01",
+        impact_start=PAST,
+        declared=PAST,
+        detected=PAST,
+        alerted=PAST,
+        acknowledged=PAST,
+        responded=PAST,
+        mitigated=PAST,
+        resolved=PAST,
+    )
+    assert FutureTimestampLintRule().lint(report) is None
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("declare_date", FUTURE_DATE),
+        ("impact_start", FUTURE),
+        ("declared", FUTURE),
+        ("detected", FUTURE),
+        ("alerted", FUTURE),
+        ("acknowledged", FUTURE),
+        ("responded", FUTURE),
+        ("mitigated", FUTURE),
+        ("resolved", FUTURE),
+    ],
+)
+def test_future_timestamp_fails_when_single_field_in_future(field, value):
+    report = IncidentReport(key="IIM-1", **{field: value})
+    msg = FutureTimestampLintRule().lint(report)
+    assert msg == f"Fields set to future timestamps: {field}."
+
+
+def test_future_timestamp_fails_when_multiple_fields_in_future():
+    report = IncidentReport(key="IIM-1", alerted=FUTURE, resolved=FUTURE)
+    msg = FutureTimestampLintRule().lint(report)
+    assert msg == "Fields set to future timestamps: alerted, resolved."
