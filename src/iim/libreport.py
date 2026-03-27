@@ -68,6 +68,14 @@ def bugzilla_id(url: Optional[str]) -> Optional[str]:
 ESSENCE_RE = re.compile(r"action: \[([^\]]+)\] (\S+) (.*)")
 
 
+def normalize_entities(value: str | None) -> str | None:
+    """Normalize a comma-separated entities string to sorted, lowercased, ', '-delimited form."""
+    if not value or not value.strip():
+        return None
+    parts = [p.strip().lower() for p in value.split(",") if p.strip()]
+    return ", ".join(sorted(parts))
+
+
 @dataclass
 class ActionItem:
     url: Optional[str] = None
@@ -101,8 +109,9 @@ class ActionItem:
 
     def essence(self) -> Optional[str]:
         # Essence of a jira action item is the key
-        if jira_key(self.url):
-            return jira_key(self.url)
+        key = jira_key(self.url)
+        if key:
+            return key
         # Essence of a non-jira action items is "[status] url: title"
         return f"action: [{self.status}] {self.url} {self.title}"[:254]
 
@@ -151,9 +160,16 @@ class IncidentReport:
     template_version: Optional[str] = None
 
     @property
+    def _start_ts(self) -> Optional[str]:
+        return self.impact_start or self.detected
+
+    @property
     def entity_bucket(self) -> str:
-        entities = self.entities or "unknown"
-        for item in entities.split(", "):
+        """Returns one of 'service', 'product', or 'unknown'"""
+        if not self.entities:
+            return "unknown"
+        for item in self.entities.split(","):
+            item = item.strip().lower()
             if ENTITY_BUCKET.get(item, "service") == "service":
                 return "service"
 
@@ -169,48 +185,38 @@ class IncidentReport:
 
     @property
     def tt_declared(self) -> Optional[timedelta]:
-        start_ts = self.impact_start or self.detected
-        if not self.declared or not self.declared > "2025-09-15" or not start_ts:
-            # NOTE(willkg): We don't have good declared data prior to September
-            # 15th, 2025, so don't calculate it if before that date.
+        # NOTE(willkg): We don't have good declared data prior to September
+        # 15th, 2025, so don't calculate it if before that date.
+        if not self.declared or self.declared <= "2025-09-15" or not self._start_ts:
             return None
-        end_ts = arrow.get(self.declared)
-        return end_ts - arrow.get(start_ts)
+        return arrow.get(self.declared) - arrow.get(self._start_ts)
 
     @property
     def tt_alerted(self) -> Optional[timedelta]:
-        start_ts = self.impact_start or self.detected
         # NOTE(willkg): Older incidents had "detected" data and may not
         # have had "alerted" data.
         alerted = self.alerted or self.detected
-        if not start_ts or not alerted:
+        if not self._start_ts or not alerted:
             return None
-        end_ts = arrow.get(alerted)
-        return end_ts - arrow.get(start_ts)
+        return arrow.get(alerted) - arrow.get(self._start_ts)
 
     @property
     def tt_responded(self) -> Optional[timedelta]:
-        start_ts = self.impact_start or self.detected
-        if not start_ts or not self.responded:
+        if not self._start_ts or not self.responded:
             return None
-        end_ts = arrow.get(self.responded)
-        return end_ts - arrow.get(start_ts)
+        return arrow.get(self.responded) - arrow.get(self._start_ts)
 
     @property
     def tt_mitigated(self) -> Optional[timedelta]:
-        start_ts = self.impact_start or self.detected
-        if not start_ts or not self.mitigated:
+        if not self._start_ts or not self.mitigated:
             return None
-        end_ts = arrow.get(self.mitigated)
-        return end_ts - arrow.get(start_ts)
+        return arrow.get(self.mitigated) - arrow.get(self._start_ts)
 
     @property
     def tt_resolved(self) -> Optional[timedelta]:
-        start_ts = self.impact_start or self.detected
-        if not start_ts or not self.resolved:
+        if not self._start_ts or not self.resolved:
             return None
-        end_ts = arrow.get(self.resolved)
-        return end_ts - arrow.get(start_ts)
+        return arrow.get(self.resolved) - arrow.get(self._start_ts)
 
     @property
     def tracked_action_items(self):

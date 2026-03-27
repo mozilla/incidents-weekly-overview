@@ -227,7 +227,6 @@ def generate_actions_diff(
 
 def print_diff_table(
     jira_incident: IncidentReport,
-    report_data: IncidentReport,
     all_diffs: list[Diff],
 ) -> bool:
     """Print a diff table. Returns True if any changes were found."""

@@ -11,7 +11,7 @@ from glom import glom
 import requests
 from requests.auth import HTTPBasicAuth
 
-from iim.libreport import ActionItem, IncidentReport
+from iim.libreport import ActionItem, IncidentReport, normalize_entities
 
 
 def convert_datestamp(datestamp: str) -> str:
@@ -70,13 +70,6 @@ INCIDENT_REPORT_TO_JIRA_FIELD = {
 
 def to_jira_field(field):
     return INCIDENT_REPORT_TO_JIRA_FIELD.get(field)
-
-
-def normalize_entities(value):
-    value = value or "unknown"
-    value = [item.strip() for item in value.strip().split(", ")]
-
-    return ", ".join(value)
 
 
 def fix_jira_incident_data(
@@ -139,12 +132,9 @@ def fix_jira_incident_data(
     )
 
 
-def get_arrow_time_or_none(incident: dict, field: str, fieldname: str) -> arrow.Arrow:
-    value = glom(incident, f"fields.{field}", default="")
-    if value:
-        value = arrow.get(value)
-
-    return value
+def get_arrow_time_or_none(incident: dict, field: str) -> Optional[arrow.Arrow]:
+    value = glom(incident, f"fields.{field}", default=None)
+    return arrow.get(value) if value else None
 
 
 def generate_jira_link(jira_url: str, incident_keys: list[str]):

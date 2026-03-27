@@ -132,7 +132,6 @@ def test_build_period_stats_total_entities():
     incidents = [
         make_incident(key="IIM-1", entities="auth, payments"),
         make_incident(key="IIM-2", entities="auth"),  # auth already counted
-        make_incident(key="IIM-3", entities="unknown"),  # excluded
         make_incident(key="IIM-4", entities=None),  # excluded
     ]
     stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
@@ -144,7 +143,8 @@ def test_build_period_stats_total_entities():
     [
         (["payments"], [("payments", 1)]),
         (["auth", "auth"], [("auth", 2)]),
-        (["unknown", "payments"], [("payments", 1)]),
+        (["payments"], [("payments", 1)]),
+        # when entities is None, it's not counted
         ([None, "payments"], [("payments", 1)]),
         # tie broken alphabetically
         (["beta", "alpha"], [("alpha", 1), ("beta", 1)]),

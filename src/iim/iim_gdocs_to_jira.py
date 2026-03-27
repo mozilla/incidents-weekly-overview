@@ -117,7 +117,7 @@ def iim_google_docs_to_jira(ctx: click.Context, dry_run: bool, docs: tuple[str, 
             # TODO: Update post-mortem actions -- not in metadata
 
             all_diffs = status_diff + metadata_diff + actions_diff
-            changes = print_diff_table(jira_incident, markdown_report, all_diffs)
+            changes = print_diff_table(jira_incident, all_diffs)
 
             if not changes:
                 click.echo("Nothing to change.")

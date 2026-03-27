@@ -142,7 +142,7 @@ def test_fix_jira_incident_data_happy():
     assert result.status == "Closed"
     assert result.summary == "Everything is on fire"
     assert result.severity == "S1"
-    assert result.entities == "payments,auth"
+    assert result.entities == "auth, payments"
     assert result.report_url == GDOC_URL
     assert result.declare_date == "2025-02-01T10:00:00.000+0000"
 
@@ -159,7 +159,7 @@ def test_fix_jira_incident_data_missing_optional_fields():
     result = fix_jira_incident_data(jira_url=JIRA_URL, incident=incident)
 
     assert result.severity == "undetermined"
-    assert result.entities == "unknown"
+    assert result.entities is None
 
 
 # ---------------------------------------------------------------------------
@@ -173,15 +173,15 @@ def test_get_arrow_time_or_none_happy():
             "customfield_12882": "2025-02-01T09:51:00.000+0000",
         }
     }
-    result = get_arrow_time_or_none(incident, "customfield_12882", "detected")
+    result = get_arrow_time_or_none(incident, "customfield_12882")
     assert isinstance(result, arrow.Arrow)
     assert result.year == 2025
 
 
 def test_get_arrow_time_or_none_missing_field():
     incident = {"fields": {}}
-    result = get_arrow_time_or_none(incident, "customfield_12882", "detected")
-    assert result == ""
+    result = get_arrow_time_or_none(incident, "customfield_12882")
+    assert result is None
 
 
 # ---------------------------------------------------------------------------
