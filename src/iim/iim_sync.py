@@ -131,7 +131,7 @@ def iim_sync(client_secret_file: str, dry_run: bool, url_or_key: tuple[str, ...]
             all_diffs = status_diff + metadata_diff + actions_diff
 
             # Step 7: display
-            has_changes = print_diff_table(jira_incident, report_data, all_diffs)
+            has_changes = print_diff_table(jira_incident, all_diffs)
 
             # Step 8: interactive prompt
             if not has_changes:

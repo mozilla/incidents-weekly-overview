@@ -9,7 +9,7 @@ import marko
 import marko.block
 import marko.inline
 
-from iim.libreport import ActionItem, IncidentReport
+from iim.libreport import ActionItem, IncidentReport, normalize_entities
 
 
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -95,14 +95,14 @@ def get_text(token, keep_links: bool = True):
     elif isinstance(token, marko.inline.Link):
         link_text = []
         for child in token.children:
-            link_text.extend(get_text(child, keep_links=keep_links))
+            link_text.append(get_text(child, keep_links=keep_links))
         if keep_links:
             text.append(f"[{''.join(link_text) or 'Link'}]({token.dest})")
         else:
             text.append("".join(link_text) or "Link")
     else:
         for child in token.children:
-            text.extend(get_text(child, keep_links=keep_links))
+            text.append(get_text(child, keep_links=keep_links))
 
     return "".join(text)
 
@@ -184,14 +184,6 @@ def _recursive_link_dests(token):
     if hasattr(token, "children") and isinstance(token.children, list):
         for child in token.children:
             yield from _recursive_link_dests(child)
-
-
-def normalize_entities(value: str | None) -> str | None:
-    """Normalize a comma-separated entities string to sorted, lowercased, ', '-delimited form."""
-    if not value or not value.strip():
-        return None
-    parts = [p.strip().lower() for p in value.split(",") if p.strip()]
-    return ", ".join(sorted(parts))
 
 
 class ReportParser:

@@ -128,7 +128,7 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
             continue
         for entity in incident.entities.split(","):
             entity = entity.strip()
-            if entity and entity != "unknown":
+            if entity:
                 entity_counter[entity] += 1
     total_entities = len(entity_counter)
     top_entities = sorted(entity_counter.items(), key=lambda x: (-x[1], x[0]))[:5]

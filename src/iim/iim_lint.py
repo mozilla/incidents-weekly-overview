@@ -101,7 +101,7 @@ class MissingEntitiesLintRule(LintRule):
     severity = "err"
 
     def lint(self, report: IncidentReport) -> Optional[str]:
-        if not report.entities or report.entities == "unknown":
+        if report.entities is None or not report.entities.strip():
             return "Entities is not set."
         return None
 

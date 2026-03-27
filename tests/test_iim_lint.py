@@ -163,11 +163,6 @@ def test_missing_entities_passes_when_entities_set():
     assert MissingEntitiesLintRule().lint(report) is None
 
 
-def test_missing_entities_fails_when_entities_unknown():
-    report = IncidentReport(key="IIM-1", entities="unknown")
-    assert MissingEntitiesLintRule().lint(report) == "Entities is not set."
-
-
 def test_missing_entities_fails_when_entities_none():
     report = IncidentReport(key="IIM-1", entities=None)
     assert MissingEntitiesLintRule().lint(report) == "Entities is not set."
