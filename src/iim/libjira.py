@@ -129,6 +129,7 @@ def fix_jira_incident_data(
         mitigated=glom(incident, "fields.customfield_18698", default=None),
         resolved=glom(incident, "fields.customfield_18699", default=None),
         action_items=action_items,
+        labels=glom(incident, "fields.labels", default=[]) or [],
     )
 
 

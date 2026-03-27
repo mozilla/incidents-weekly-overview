@@ -246,3 +246,28 @@ def test_from_essence_roundtrip():
     assert reconstructed.url == original.url
     assert reconstructed.status == original.status
     assert reconstructed.title == original.title
+
+
+# ---------------------------------------------------------------------------
+# IncidentReport.is_completed
+# ---------------------------------------------------------------------------
+
+
+def test_is_completed_with_completed_label():
+    report = IncidentReport(labels=["completed"])
+    assert report.is_completed is True
+
+
+def test_is_completed_with_multiple_labels_including_completed():
+    report = IncidentReport(labels=["foo", "completed", "bar"])
+    assert report.is_completed is True
+
+
+def test_is_completed_without_completed_label():
+    report = IncidentReport(labels=["foo", "bar"])
+    assert report.is_completed is False
+
+
+def test_is_completed_with_empty_labels():
+    report = IncidentReport()
+    assert report.is_completed is False
