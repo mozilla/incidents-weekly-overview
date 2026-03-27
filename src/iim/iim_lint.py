@@ -14,6 +14,7 @@ import re
 import sys
 from typing import Optional
 
+import arrow
 import click
 import requests
 import rich
@@ -158,6 +159,35 @@ class UndeterminedSeverityLintRule(LintRule):
         return None
 
 
+class FutureTimestampLintRule(LintRule):
+    lr_number = "LR090"
+    name = "future-timestamp"
+    severity = "err"
+
+    FIELDS = [
+        "declare_date",
+        "impact_start",
+        "declared",
+        "detected",
+        "alerted",
+        "acknowledged",
+        "responded",
+        "mitigated",
+        "resolved",
+    ]
+
+    def lint(self, report: IncidentReport) -> Optional[str]:
+        now = arrow.now()
+        future_fields = [
+            field
+            for field in self.FIELDS
+            if (value := getattr(report, field)) and arrow.get(value) > now
+        ]
+        if future_fields:
+            return f"Fields set to future timestamps: {', '.join(future_fields)}."
+        return None
+
+
 LINT_RULES: list[LintRule] = [
     MissingResolvedLintRule(),
     MissingMitigatedLintRule(),
@@ -167,6 +197,7 @@ LINT_RULES: list[LintRule] = [
     MismatchedDeclareDateLintRule(),
     MissingActionItemsLintRule(),
     UndeterminedSeverityLintRule(),
+    FutureTimestampLintRule(),
 ]
 
 
