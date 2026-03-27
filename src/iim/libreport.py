@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 import json
 from importlib.resources import files as resources_files
@@ -158,6 +158,12 @@ class IncidentReport:
     action_items: Optional[list[ActionItem]] = None
     # incident report template version (e.g. "2026.03.12")
     template_version: Optional[str] = None
+    # jira labels
+    labels: list[str] = field(default_factory=list)
+
+    @property
+    def is_completed(self) -> bool:
+        return "completed" in self.labels
 
     @property
     def _start_ts(self) -> Optional[str]:

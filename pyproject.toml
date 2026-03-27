@@ -29,6 +29,7 @@ iim-gdoc-download = "iim.iim_gdoc_download:iim_gdoc_download"
 iim-gdocs-to-jira = "iim.iim_gdocs_to_jira:iim_google_docs_to_jira"
 iim-lint = "iim.iim_lint:iim_lint"
 iim-sync = "iim.iim_sync:iim_sync"
+iim-to-review = "iim.iim_to_review:iim_to_review"
 iim-qbr = "iim.iim_qbr:iim_qbr"
 iim-weekly-overview = "iim.iim_weekly_overview:iim_weekly_report"
 
