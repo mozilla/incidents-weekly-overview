@@ -2,5 +2,6 @@
   "fenix": "product",
   "firefox": "product",
   "firefox-ios": "product",
+  "thunderbird": "product",
   "unknown": "service"
 }
