@@ -8,9 +8,11 @@ specified quarter.
 """
 
 import csv
+from datetime import timedelta
 import json
 from importlib.resources import files as resources_files
 import os
+from typing import Optional
 
 import arrow
 import click
@@ -48,6 +50,13 @@ def pct_change(a, b):
     if a == 0:
         return -1
     return (b - a) / a * 100
+
+
+def tt_in_seconds(tt_value: Optional[timedelta]) -> Optional[int]:
+    if tt_value is None:
+        return tt_value
+
+    return tt_value.total_seconds()
 
 
 def count_reviewed(date_start, date_end, review_data):
@@ -194,17 +203,56 @@ def iim_qbr(ctx, quarter, fmt):
 
     with open(f"qbr_stats_{quarter}.csv", "w") as fp:
         writer = csv.writer(fp)
+        writer.writerow(
+            [
+                "key",
+                "jira_url",
+                "report_url",
+                "report_modified",
+                "summary",
+                "status",
+                "entity_bucket",
+                "entities",
+                "severity",
+                "detection_method",
+                "impact_start",
+                "declared",
+                "tt-declared",
+                "alerted",
+                "tt-alerted",
+                "responded",
+                "tt-responded",
+                "mitigated",
+                "tt-mitigated",
+                "resolved",
+                "tt-resolved",
+            ]
+        )
         for incident in these:
             writer.writerow(
                 [
                     incident.key,
+                    incident.jira_url,
+                    incident.report_url,
+                    incident.report_modified,
+                    incident.summary,
+                    incident.status,
+                    incident.entity_bucket,
                     incident.entities,
-                    incident.impact_start,
                     incident.severity,
                     incident.detection_method,
+                    incident.impact_start,
+                    incident.declared,
+                    tt_in_seconds(incident.tt_declared),
+                    # degrade to detected for older reports
                     incident.alerted or incident.detected,
+                    tt_in_seconds(incident.tt_alerted),
                     incident.responded,
+                    tt_in_seconds(incident.tt_responded),
                     incident.mitigated,
+                    tt_in_seconds(incident.tt_mitigated),
+                    incident.resolved,
+                    tt_in_seconds(incident.tt_resolved),
                 ]
             )
 
