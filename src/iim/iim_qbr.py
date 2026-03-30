@@ -52,7 +52,7 @@ def pct_change(a, b):
     return (b - a) / a * 100
 
 
-def tt_in_seconds(tt_value: Optional[timedelta]) -> Optional[int]:
+def tt_in_seconds(tt_value: Optional[timedelta]) -> Optional[float]:
     if tt_value is None:
         return tt_value
 

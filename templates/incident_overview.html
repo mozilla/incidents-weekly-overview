@@ -233,40 +233,40 @@
         <table class="trends" style="width: 100%">
           <tr>
             <th></th>
-            <th>Prior</th>
-            <th>Recent</th>
+            <th colspan="3">Prior</th>
+            <th colspan="3">Recent</th>
             <th>Change</th>
             <th>Objective</th>
           </tr>
           <tr>
             <td>Total incidents</td>
-            <td>{{ trends_summary.prior.total_incidents }}</td>
-            <td>{{ trends_summary.current.total_incidents }}</td>
+            <td colspan="3">{{ trends_summary.prior.total_incidents }}</td>
+            <td colspan="3">{{ trends_summary.current.total_incidents }}</td>
             <td>{{ direction_symbol(trends_summary.prior.total_incidents, trends_summary.current.total_incidents, True, "more", "fewer") }}</td>
             <td>Increase incident management adoption.</td>
           </tr>
           <tr>
             <td>Total entities</td>
-            <td>{{ trends_summary.prior.total_entities }}</td>
-            <td>{{ trends_summary.current.total_entities }}</td>
+            <td colspan="3">{{ trends_summary.prior.total_entities }}</td>
+            <td colspan="3">{{ trends_summary.current.total_entities }}</td>
             <td>{{ direction_symbol(trends_summary.prior.total_entities, trends_summary.current.total_entities, True, "more", "fewer") }}</td>
             <td>Increase incident management adoption.</td>
           </tr>
           <tr>
             <td>Mean action items per<br>incident</td>
-            <td>{% if trends_summary.prior.mean_action_items is not none %}{{ trends_summary.prior.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
-            <td>{% if trends_summary.current.mean_action_items is not none %}{{ trends_summary.current.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
+            <td colspan="3">{% if trends_summary.prior.mean_action_items is not none %}{{ trends_summary.prior.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
+            <td colspan="3">{% if trends_summary.current.mean_action_items is not none %}{{ trends_summary.current.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
             <td>{{ direction_symbol(trends_summary.prior.mean_action_items, trends_summary.current.mean_action_items, True) }}</td>
             <td>Improve systems and processes after incidents.</td>
           </tr>
           <tr>
             <td>Top 5 entities</td>
-            <td>
+            <td colspan="3">
               {% for i in range(max_len) %}
                 {{ prior_ents[i][0] }} ({{ prior_ents[i][1] }})<br>
               {% endfor %}
             </td>
-            <td>
+            <td colspan="3">
               {% for i in range(max_len) %}
                 {{ recent_ents[i][0] }} ({{ recent_ents[i][1] }})<br>
               {% endfor %}
@@ -277,8 +277,8 @@
           {% for sev in ["S1", "S2", "S3", "S4"] %}
           <tr>
             <td><span class="sev sev-{{ sev }}">{{ sev }}</span></td>
-            <td>{{ trends_summary.prior.severity_counts[sev] | round(1) }}%</td>
-            <td>{{ trends_summary.current.severity_counts[sev] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.prior.severity_counts[sev] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.severity_counts[sev] | round(1) }}%</td>
             <td></td>
             <td></td>
           </tr>
@@ -287,89 +287,148 @@
           {% set display_status = "In Progress" if status == "InProgress" else status %}
           <tr>
             <td><span class="status status-{{ status }}">{{ display_status }}</span></td>
-            <td>{{ trends_summary.prior.status_counts[status] | round(1) }}%</td>
-            <td>{{ trends_summary.current.status_counts[status] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.prior.status_counts[status] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.status_counts[status] | round(1) }}%</td>
             <td>{{ direction_symbol(trends_summary.prior.status_counts[status], trends_summary.current.status_counts[status], status == "Resolved") }}</td>
             <td>{% if status == "Resolved" %}Increase percentage of resolved incidents.{% endif %}</td>
           </tr>
           {% endfor %}
           <tr>
-            <th colspan="5">Services</th>
+            <th colspan="9">Services</th>
+          </tr>
+          <tr>
+            <th></th>
+            <th>mean</th>
+            <th>n</th>
+            <th>pvar</th>
+            <th>mean</th>
+            <th>n</th>
+            <th>pvar</th>
+            <th></th>
+            <th></th>
           </tr>
           <tr>
             <td>Detection by automation</td>
-            <td>{{ trends_summary.prior.service_detection_method_counts["Automation"] | round(1) }}%</td>
-            <td>{{ trends_summary.current.service_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.prior.service_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.service_detection_method_counts["Automation"] | round(1) }}%</td>
             <td>{{ direction_symbol(trends_summary.prior.service_detection_method_counts["Automation"], trends_summary.current.service_detection_method_counts["Automation"], True) }}</td>
             <td>Increase detection by automation.</td>
           </tr>
           <tr>
             <td>MTT-DEC</td>
             <td>{% if trends_summary.prior.service_mean_tt_dec is not none %}{{ trends_summary.prior.service_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.service_count_tt_dec }}</td>
+            <td>{{ format_pvar(trends_summary.prior.service_mean_tt_dec, trends_summary.prior.service_pvariance_tt_dec) }}</td>
             <td>{% if trends_summary.current.service_mean_tt_dec is not none %}{{ trends_summary.current.service_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.service_count_tt_dec }}</td>
+            <td>{{ format_pvar(trends_summary.current.service_mean_tt_dec, trends_summary.current.service_pvariance_tt_dec) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_dec, trends_summary.current.service_mean_tt_dec) }}</td>
             <td>Mean time to declare decreases.</td>
           </tr>
           <tr>
             <td>MTT-ALERT</td>
             <td>{% if trends_summary.prior.service_mean_tt_alert is not none %}{{ trends_summary.prior.service_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.service_count_tt_alert }}</td>
+            <td>{{ format_pvar(trends_summary.prior.service_mean_tt_alert, trends_summary.prior.service_pvariance_tt_alert) }}</td>
             <td>{% if trends_summary.current.service_mean_tt_alert is not none %}{{ trends_summary.current.service_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.service_count_tt_alert }}</td>
+            <td>{{ format_pvar(trends_summary.current.service_mean_tt_alert, trends_summary.current.service_pvariance_tt_alert) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_alert, trends_summary.current.service_mean_tt_alert) }}</td>
             <td>Mean time to detect decreases.</td>
           </tr>
           <tr>
             <td>MTT-MIT</td>
             <td>{% if trends_summary.prior.service_mean_tt_mit is not none %}{{ trends_summary.prior.service_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.service_count_tt_mit }}</td>
+            <td>{{ format_pvar(trends_summary.prior.service_mean_tt_mit, trends_summary.prior.service_pvariance_tt_mit) }}</td>
             <td>{% if trends_summary.current.service_mean_tt_mit is not none %}{{ trends_summary.current.service_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.service_count_tt_mit }}</td>
+            <td>{{ format_pvar(trends_summary.current.service_mean_tt_mit, trends_summary.current.service_pvariance_tt_mit) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_mit, trends_summary.current.service_mean_tt_mit) }}</td>
             <td>Mean time to mitigation decreases.</td>
           </tr>
           <tr>
             <td>MTT-RES</td>
             <td>{% if trends_summary.prior.service_mean_tt_res is not none %}{{ trends_summary.prior.service_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.service_count_tt_res }}</td>
+            <td>{{ format_pvar(trends_summary.prior.service_mean_tt_res, trends_summary.prior.service_pvariance_tt_res) }}</td>
             <td>{% if trends_summary.current.service_mean_tt_res is not none %}{{ trends_summary.current.service_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.service_count_tt_res }}</td>
+            <td>{{ format_pvar(trends_summary.current.service_mean_tt_res, trends_summary.current.service_pvariance_tt_res) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_res, trends_summary.current.service_mean_tt_res) }}</td>
             <td>Mean time to resolve decreases.</td>
           </tr>
           <tr>
-            <th colspan="5">Products</th>
+            <th colspan="9">Products</th>
+          </tr>
+          <tr>
+            <th></th>
+            <th>mean</th>
+            <th>n</th>
+            <th>pvar</th>
+            <th>mean</th>
+            <th>n</th>
+            <th>pvar</th>
+            <th></th>
+            <th></th>
           </tr>
           <tr>
             <td>Detection by automation</td>
-            <td>{{ trends_summary.prior.product_detection_method_counts["Automation"] | round(1) }}%</td>
-            <td>{{ trends_summary.current.product_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.prior.product_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.product_detection_method_counts["Automation"] | round(1) }}%</td>
             <td>{{ direction_symbol(trends_summary.prior.product_detection_method_counts["Automation"], trends_summary.current.product_detection_method_counts["Automation"], True) }}</td>
             <td></td>
           </tr>
           <tr>
             <td>MTT-DEC</td>
             <td>{% if trends_summary.prior.product_mean_tt_dec is not none %}{{ trends_summary.prior.product_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.product_count_tt_dec }}</td>
+            <td>{{ format_pvar(trends_summary.prior.product_mean_tt_dec, trends_summary.prior.product_pvariance_tt_dec) }}</td>
             <td>{% if trends_summary.current.product_mean_tt_dec is not none %}{{ trends_summary.current.product_mean_tt_dec | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.product_count_tt_dec }}</td>
+            <td>{{ format_pvar(trends_summary.current.product_mean_tt_dec, trends_summary.current.product_pvariance_tt_dec) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_dec, trends_summary.current.product_mean_tt_dec) }}</td>
             <td>Mean time to declare decreases.</td>
           </tr>
           <tr>
             <td>MTT-ALERT</td>
             <td>{% if trends_summary.prior.product_mean_tt_alert is not none %}{{ trends_summary.prior.product_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.product_count_tt_alert }}</td>
+            <td>{{ format_pvar(trends_summary.prior.product_mean_tt_alert, trends_summary.prior.product_pvariance_tt_alert) }}</td>
             <td>{% if trends_summary.current.product_mean_tt_alert is not none %}{{ trends_summary.current.product_mean_tt_alert | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.product_count_tt_alert }}</td>
+            <td>{{ format_pvar(trends_summary.current.product_mean_tt_alert, trends_summary.current.product_pvariance_tt_alert) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_alert, trends_summary.current.product_mean_tt_alert) }}</td>
             <td>Mean time to detect decreases.</td>
           </tr>
           <tr>
             <td>MTT-MIT</td>
             <td>{% if trends_summary.prior.product_mean_tt_mit is not none %}{{ trends_summary.prior.product_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.product_count_tt_mit }}</td>
+            <td>{{ format_pvar(trends_summary.prior.product_mean_tt_mit, trends_summary.prior.product_pvariance_tt_mit) }}</td>
             <td>{% if trends_summary.current.product_mean_tt_mit is not none %}{{ trends_summary.current.product_mean_tt_mit | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.product_count_tt_mit }}</td>
+            <td>{{ format_pvar(trends_summary.current.product_mean_tt_mit, trends_summary.current.product_pvariance_tt_mit) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_mit, trends_summary.current.product_mean_tt_mit) }}</td>
             <td>Mean time to mitigation decreases.</td>
           </tr>
           <tr>
             <td>MTT-RES</td>
             <td>{% if trends_summary.prior.product_mean_tt_res is not none %}{{ trends_summary.prior.product_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.prior.product_count_tt_res }}</td>
+            <td>{{ format_pvar(trends_summary.prior.product_mean_tt_res, trends_summary.prior.product_pvariance_tt_res) }}</td>
             <td>{% if trends_summary.current.product_mean_tt_res is not none %}{{ trends_summary.current.product_mean_tt_res | humanize_timedelta }}{% else %}&mdash;{% endif %}</td>
+            <td>{{ trends_summary.current.product_count_tt_res }}</td>
+            <td>{{ format_pvar(trends_summary.current.product_mean_tt_res, trends_summary.current.product_pvariance_tt_res) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_res, trends_summary.current.product_mean_tt_res) }}</td>
             <td>Mean time to resolve decreases.</td>
           </tr>
         </table>
+        <p>
+          <em>pvar</em> is the relative variance (population variance /
+          mean<sup>2</sup>). A value &gt; 1.5 means there's high spread, the
+          mean is not very representative, and outliers dominate.
+        </p>
 
   <h1>Incident Week Summary</h1>
   <p>From {{ last_friday | friendly_date }} to {{ this_friday | friendly_date }}</p>
