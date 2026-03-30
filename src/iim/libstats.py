@@ -6,6 +6,7 @@
 Shared statistics utilities for computing period-based incident metrics.
 """
 
+import statistics
 from collections import Counter
 from dataclasses import dataclass
 from datetime import timedelta
@@ -35,10 +36,26 @@ class PeriodStats:
     service_mean_tt_alert: Optional[timedelta]
     service_mean_tt_mit: Optional[timedelta]
     service_mean_tt_res: Optional[timedelta]
+    service_pvariance_tt_dec: Optional[float]  # seconds²
+    service_pvariance_tt_alert: Optional[float]  # seconds²
+    service_pvariance_tt_mit: Optional[float]  # seconds²
+    service_pvariance_tt_res: Optional[float]  # seconds²
+    service_count_tt_dec: int
+    service_count_tt_alert: int
+    service_count_tt_mit: int
+    service_count_tt_res: int
     product_mean_tt_dec: Optional[timedelta]
     product_mean_tt_alert: Optional[timedelta]
     product_mean_tt_mit: Optional[timedelta]
     product_mean_tt_res: Optional[timedelta]
+    product_pvariance_tt_dec: Optional[float]  # seconds²
+    product_pvariance_tt_alert: Optional[float]  # seconds²
+    product_pvariance_tt_mit: Optional[float]  # seconds²
+    product_pvariance_tt_res: Optional[float]  # seconds²
+    product_count_tt_dec: int
+    product_count_tt_alert: int
+    product_count_tt_mit: int
+    product_count_tt_res: int
     mean_action_items: Optional[
         float
     ]  # mean per resolved incident with action_items set
@@ -83,6 +100,43 @@ def mean_timedelta(values: list[Optional[timedelta]]) -> Optional[timedelta]:
     if not filtered:
         return None
     return sum(filtered, timedelta()) / len(filtered)
+
+
+def pvariance_timedelta(values: list[Optional[timedelta]]) -> Optional[float]:
+    """Returns population variance of the given timedeltas, in seconds²."""
+    filtered = [v for v in values if v is not None]
+    if len(filtered) < 2:
+        return None
+    secs = [v.total_seconds() for v in filtered]
+    return statistics.pvariance(secs)
+
+
+def count_timedelta(values: list[Optional[timedelta]]) -> int:
+    """Returns the count of non-None timedelta values."""
+    return sum(1 for v in values if v is not None)
+
+
+def format_pvar(mean_td: Optional[timedelta], pvariance: Optional[float]) -> str:
+    if mean_td is None or pvariance is None:
+        return "\u2014"
+    mean_secs = mean_td.total_seconds()
+    if mean_secs == 0:
+        return "\u2014"
+    return f"{pvariance / (mean_secs**2):.2f}"
+
+
+def format_mtt(
+    mean_td: Optional[timedelta], pvariance: Optional[float], count: int
+) -> str:
+    if mean_td is None:
+        return "\u2014"
+    mean_str = humanize_timedelta(mean_td)
+    mean_secs = mean_td.total_seconds()
+    count_str = f"({count} values)"
+    if pvariance is None or mean_secs == 0:
+        return f"{mean_str} {count_str}"
+    relative_variance = pvariance / (mean_secs**2)
+    return f"{mean_str} {count_str} ({relative_variance:.2f} pvar)"
 
 
 def direction(prior_val, current_val) -> str:
@@ -195,10 +249,30 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
         service_mean_tt_alert=mean_timedelta([i.tt_alerted for i in service]),
         service_mean_tt_mit=mean_timedelta([i.tt_mitigated for i in service]),
         service_mean_tt_res=mean_timedelta([i.tt_resolved for i in service_resolved]),
+        service_pvariance_tt_dec=pvariance_timedelta([i.tt_declared for i in service]),
+        service_pvariance_tt_alert=pvariance_timedelta([i.tt_alerted for i in service]),
+        service_pvariance_tt_mit=pvariance_timedelta([i.tt_mitigated for i in service]),
+        service_pvariance_tt_res=pvariance_timedelta(
+            [i.tt_resolved for i in service_resolved]
+        ),
+        service_count_tt_dec=count_timedelta([i.tt_declared for i in service]),
+        service_count_tt_alert=count_timedelta([i.tt_alerted for i in service]),
+        service_count_tt_mit=count_timedelta([i.tt_mitigated for i in service]),
+        service_count_tt_res=count_timedelta([i.tt_resolved for i in service_resolved]),
         product_mean_tt_dec=mean_timedelta([i.tt_declared for i in product]),
         product_mean_tt_alert=mean_timedelta([i.tt_alerted for i in product]),
         product_mean_tt_mit=mean_timedelta([i.tt_mitigated for i in product]),
         product_mean_tt_res=mean_timedelta([i.tt_resolved for i in product_resolved]),
+        product_pvariance_tt_dec=pvariance_timedelta([i.tt_declared for i in product]),
+        product_pvariance_tt_alert=pvariance_timedelta([i.tt_alerted for i in product]),
+        product_pvariance_tt_mit=pvariance_timedelta([i.tt_mitigated for i in product]),
+        product_pvariance_tt_res=pvariance_timedelta(
+            [i.tt_resolved for i in product_resolved]
+        ),
+        product_count_tt_dec=count_timedelta([i.tt_declared for i in product]),
+        product_count_tt_alert=count_timedelta([i.tt_alerted for i in product]),
+        product_count_tt_mit=count_timedelta([i.tt_mitigated for i in product]),
+        product_count_tt_res=count_timedelta([i.tt_resolved for i in product_resolved]),
     )
 
 

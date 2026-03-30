@@ -10,6 +10,9 @@ from pytest import approx
 from iim.iim_weekly_overview import friendly_date
 from iim.libstats import (
     mean_timedelta,
+    pvariance_timedelta,
+    count_timedelta,
+    format_mtt,
     build_period_stats,
     compute_period_comparison,
     direction,
@@ -71,6 +74,89 @@ def make_incident(**kwargs):
 )
 def test_mean_timedelta(values, expected):
     assert mean_timedelta(values) == expected
+
+
+# ---------------------------------------------------------------------------
+# pvariance_timedelta
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "values,expected",
+    [
+        ([], None),
+        ([None], None),
+        ([timedelta(hours=2)], None),
+        ([timedelta(hours=2), None], None),
+        # pvariance of [2h, 4h]: mean=3h, deviations=-1h,+1h, variance=1h²
+        (
+            [timedelta(hours=2), timedelta(hours=4)],
+            timedelta(hours=1).total_seconds() ** 2,
+        ),
+        # pvariance of [0h, 4h, 8h]: mean=4h, deviations=-4h,0,+4h, variance=32h²/3
+        (
+            [timedelta(hours=0), timedelta(hours=4), timedelta(hours=8)],
+            (timedelta(hours=4).total_seconds() ** 2) * 2 / 3,
+        ),
+    ],
+)
+def test_pvariance_timedelta(values, expected):
+    result = pvariance_timedelta(values)
+    if expected is None:
+        assert result is None
+    else:
+        assert abs(result - expected) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# count_timedelta
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "values,expected",
+    [
+        ([], 0),
+        ([None], 0),
+        ([None, None], 0),
+        ([timedelta(hours=2)], 1),
+        ([timedelta(hours=2), None], 1),
+        ([timedelta(hours=2), timedelta(hours=4)], 2),
+    ],
+)
+def test_count_timedelta(values, expected):
+    assert count_timedelta(values) == expected
+
+
+# ---------------------------------------------------------------------------
+# format_mtt
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "mean_td,pvariance,count,expected",
+    [
+        (None, None, 0, "\u2014"),
+        (timedelta(hours=2), None, 1, "2h (1 values)"),
+        (timedelta(seconds=0), 3600.0, 3, "0s (3 values)"),
+        # pvariance=mean²  → relative variance=1.00
+        (
+            timedelta(hours=2),
+            timedelta(hours=2).total_seconds() ** 2,
+            5,
+            "2h (5 values) (1.00 pvar)",
+        ),
+        # pvariance=(mean/2)²  → relative variance=0.25
+        (
+            timedelta(hours=4),
+            timedelta(hours=2).total_seconds() ** 2,
+            9,
+            "4h (9 values) (0.25 pvar)",
+        ),
+    ],
+)
+def test_format_mtt(mean_td, pvariance, count, expected):
+    assert format_mtt(mean_td, pvariance, count) == expected
 
 
 # ---------------------------------------------------------------------------

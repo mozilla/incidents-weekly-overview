@@ -167,7 +167,14 @@ class IncidentReport:
 
     @property
     def _start_ts(self) -> Optional[str]:
-        return self.impact_start or self.detected
+        # impact_start is correct, but degrade to the earlier of alerted, declared,
+        # or detected.
+        earliest = list(
+            sorted(
+                [item for item in [self.alerted, self.detected, self.declared] if item]
+            )
+        )
+        return self.impact_start or earliest[0] if earliest else None
 
     @property
     def entity_bucket(self) -> str:

@@ -23,6 +23,7 @@ from iim.libjira import (
 from iim.libstats import (
     compute_period_comparison,
     direction_symbol,
+    format_pvar,
     humanize_timedelta,
 )
 
@@ -41,7 +42,14 @@ def friendly_date(date_str: str) -> str:
 
 @click.command()
 @click.pass_context
-def iim_weekly_report(ctx):
+@click.option(
+    "--friday",
+    "friday_date",
+    default=None,
+    metavar="YYYY-MM-DD",
+    help="Friday date to generate report for. Defaults to this week's Friday.",
+)
+def iim_weekly_report(ctx, friday_date):
     """
     Computes a weekly report based on Jira data. Make sure to update the data
     in Jira before running this report.
@@ -65,10 +73,11 @@ def iim_weekly_report(ctx):
     ]
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
-    last_friday = (
-        arrow.now().shift(weeks=-1).floor("week").shift(days=4).format("YYYY-MM-DD")
-    )
-    this_friday = arrow.now().floor("week").shift(days=4).format("YYYY-MM-DD")
+    if friday_date:
+        this_friday = friday_date
+    else:
+        this_friday = arrow.now().floor("week").shift(days=4).format("YYYY-MM-DD")
+    last_friday = arrow.get(this_friday).shift(weeks=-1).format("YYYY-MM-DD")
 
     click.echo(f"From: {last_friday} to {this_friday}")
     new_incidents = [
@@ -130,6 +139,7 @@ def iim_weekly_report(ctx):
     env.filters["humanize_timedelta"] = humanize_timedelta
     env.filters["friendly_date"] = friendly_date
     env.globals["direction_symbol"] = cast(Any, direction_symbol)
+    env.globals["format_pvar"] = cast(Any, format_pvar)
 
     template = env.get_template("incident_overview.html")
     html = template.render(
@@ -168,7 +178,7 @@ def iim_weekly_report(ctx):
 
     # NOTE(willkg): arrow only does YYYY-MM-DD. we can't get it to do YYYYMMDD
     # or YYYY_MM_DD. it's unclear why.
-    file_friendly_date = this_friday.format("YYYY-MM-DD").replace("-", "")
+    file_friendly_date = this_friday.replace("-", "")
     fn = os.path.join(OVERVIEWS_DIR, f"incident_overview_{file_friendly_date}.html")
     with open(fn, "w") as fp:
         fp.write(fixed_html)
