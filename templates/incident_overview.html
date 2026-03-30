@@ -283,16 +283,6 @@
             <td></td>
           </tr>
           {% endfor %}
-          {% for status in ["Detected", "InProgress", "Mitigated", "Resolved"] %}
-          {% set display_status = "In Progress" if status == "InProgress" else status %}
-          <tr>
-            <td><span class="status status-{{ status }}">{{ display_status }}</span></td>
-            <td colspan="3">{{ trends_summary.prior.status_counts[status] | round(1) }}%</td>
-            <td colspan="3">{{ trends_summary.current.status_counts[status] | round(1) }}%</td>
-            <td>{{ direction_symbol(trends_summary.prior.status_counts[status], trends_summary.current.status_counts[status], status == "Resolved") }}</td>
-            <td>{% if status == "Resolved" %}Increase percentage of resolved incidents.{% endif %}</td>
-          </tr>
-          {% endfor %}
           <tr>
             <th colspan="9">Services</th>
           </tr>
@@ -300,19 +290,12 @@
             <th></th>
             <th>mean</th>
             <th>n</th>
-            <th>pvar</th>
+            <th>pvar*</th>
             <th>mean</th>
             <th>n</th>
-            <th>pvar</th>
+            <th>pvar*</th>
             <th></th>
             <th></th>
-          </tr>
-          <tr>
-            <td>Detection by automation</td>
-            <td colspan="3">{{ trends_summary.prior.service_detection_method_counts["Automation"] | round(1) }}%</td>
-            <td colspan="3">{{ trends_summary.current.service_detection_method_counts["Automation"] | round(1) }}%</td>
-            <td>{{ direction_symbol(trends_summary.prior.service_detection_method_counts["Automation"], trends_summary.current.service_detection_method_counts["Automation"], True) }}</td>
-            <td>Increase detection by automation.</td>
           </tr>
           <tr>
             <td>MTT-DEC</td>
@@ -359,25 +342,32 @@
             <td>Mean time to resolve decreases.</td>
           </tr>
           <tr>
+            <td><span class="status status-Resolved">Resolved</span></td>
+            <td colspan="3">{{ trends_summary.prior.service_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.prior.service_resolved_count }}/{{ trends_summary.prior.service_total_count }})</td>
+            <td colspan="3">{{ trends_summary.current.service_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.current.service_resolved_count }}/{{ trends_summary.current.service_total_count }})</td>
+            <td>{{ direction_symbol(trends_summary.prior.service_status_counts["Resolved"], trends_summary.current.service_status_counts["Resolved"], True) }}</td>
+            <td>Increase percentage of resolved incidents.</td>
+          </tr>
+          <tr>
+            <td>Detection by automation</td>
+            <td colspan="3">{{ trends_summary.prior.service_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.service_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td>{{ direction_symbol(trends_summary.prior.service_detection_method_counts["Automation"], trends_summary.current.service_detection_method_counts["Automation"], True) }}</td>
+            <td>Increase detection by automation.</td>
+          </tr>
+          <tr>
             <th colspan="9">Products</th>
           </tr>
           <tr>
             <th></th>
             <th>mean</th>
             <th>n</th>
-            <th>pvar</th>
+            <th>pvar*</th>
             <th>mean</th>
             <th>n</th>
-            <th>pvar</th>
+            <th>pvar*</th>
             <th></th>
             <th></th>
-          </tr>
-          <tr>
-            <td>Detection by automation</td>
-            <td colspan="3">{{ trends_summary.prior.product_detection_method_counts["Automation"] | round(1) }}%</td>
-            <td colspan="3">{{ trends_summary.current.product_detection_method_counts["Automation"] | round(1) }}%</td>
-            <td>{{ direction_symbol(trends_summary.prior.product_detection_method_counts["Automation"], trends_summary.current.product_detection_method_counts["Automation"], True) }}</td>
-            <td></td>
           </tr>
           <tr>
             <td>MTT-DEC</td>
@@ -423,9 +413,23 @@
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_res, trends_summary.current.product_mean_tt_res) }}</td>
             <td>Mean time to resolve decreases.</td>
           </tr>
+          <tr>
+            <td><span class="status status-Resolved">Resolved</span></td>
+            <td colspan="3">{{ trends_summary.prior.product_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.prior.product_resolved_count }}/{{ trends_summary.prior.product_total_count }})</td>
+            <td colspan="3">{{ trends_summary.current.product_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.current.product_resolved_count }}/{{ trends_summary.current.product_total_count }})</td>
+            <td>{{ direction_symbol(trends_summary.prior.product_status_counts["Resolved"], trends_summary.current.product_status_counts["Resolved"], True) }}</td>
+            <td>Increase percentage of resolved incidents.</td>
+          </tr>
+          <tr>
+            <td>Detection by automation</td>
+            <td colspan="3">{{ trends_summary.prior.product_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.product_detection_method_counts["Automation"] | round(1) }}%</td>
+            <td>{{ direction_symbol(trends_summary.prior.product_detection_method_counts["Automation"], trends_summary.current.product_detection_method_counts["Automation"], True) }}</td>
+            <td></td>
+          </tr>
         </table>
         <p>
-          <em>pvar</em> is the relative variance (population variance /
+          * <em>pvar</em> is the relative variance (population variance /
           mean<sup>2</sup>). A value &gt; 1.5 means there's high spread, the
           mean is not very representative, and outliers dominate.
         </p>
