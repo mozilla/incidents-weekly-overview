@@ -194,7 +194,13 @@ def test_build_period_stats_empty():
     assert stats.total_incidents == 0
     assert stats.top_entities == []
     assert stats.severity_counts == {"S1": 0.0, "S2": 0.0, "S3": 0.0, "S4": 0.0}
-    assert stats.status_counts == {
+    assert stats.service_status_counts == {
+        "Detected": 0.0,
+        "InProgress": 0.0,
+        "Mitigated": 0.0,
+        "Resolved": 0.0,
+    }
+    assert stats.product_status_counts == {
         "Detected": 0.0,
         "InProgress": 0.0,
         "Mitigated": 0.0,
@@ -314,7 +320,8 @@ def test_build_period_stats_status_counts(statuses, expected):
         for i, s in enumerate(statuses)
     ]
     stats = build_period_stats(incidents, "2026-01-01", "2026-02-12")
-    assert stats.status_counts == expected
+    # incidents use default entities="auth" which maps to service bucket
+    assert stats.service_status_counts == expected
 
 
 def test_build_period_stats_tt_res_resolved_only():

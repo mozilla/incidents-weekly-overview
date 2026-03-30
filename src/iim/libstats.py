@@ -23,9 +23,16 @@ class PeriodStats:
     total_entities: int  # distinct entity names (excluding unknown/None)
     top_entities: list[tuple[str, int]]  # top 5, descending by count
     severity_counts: dict[str, float]  # {"S1": %, "S2": %, "S3": %, "S4": %} as 0-100
-    status_counts: dict[
+    service_total_count: int
+    service_resolved_count: int
+    service_status_counts: dict[
         str, float
-    ]  # {"Detected": %, "InProgress": %, "Mitigated": %, "Resolved": %} as 0-100
+    ]  # {"Detected": %, "InProgress": %, "Mitigated": %, "Resolved": %} as 0-100, service bucket only
+    product_total_count: int
+    product_resolved_count: int
+    product_status_counts: dict[
+        str, float
+    ]  # {"Detected": %, "InProgress": %, "Mitigated": %, "Resolved": %} as 0-100, product bucket only
     service_detection_method_counts: dict[
         str, float
     ]  # {"Manual": %, "Automation": %} as 0-100, excludes unknown, service bucket only
@@ -197,18 +204,21 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
         k: (v / total * 100) if total else 0.0 for k, v in sev_raw.items()
     }
 
-    # status percentages
-    status_raw = {"Detected": 0, "InProgress": 0, "Mitigated": 0, "Resolved": 0}
-    for incident in incidents:
-        if incident.status in status_raw:
-            status_raw[incident.status] += 1
-    status_counts = {
-        k: (v / total * 100) if total else 0.0 for k, v in status_raw.items()
-    }
-
     # TT means by entity_bucket
     service = [i for i in incidents if i.entity_bucket == "service"]
     product = [i for i in incidents if i.entity_bucket == "product"]
+
+    # status percentages by bucket
+    def _status_counts(bucket):
+        n = len(bucket)
+        raw = {"Detected": 0, "InProgress": 0, "Mitigated": 0, "Resolved": 0}
+        for i in bucket:
+            if i.status in raw:
+                raw[i.status] += 1
+        return {k: (v / n * 100) if n else 0.0 for k, v in raw.items()}
+
+    service_status_counts = _status_counts(service)
+    product_status_counts = _status_counts(product)
 
     # detection method percentages by bucket, excluding unknown
     def _detection_counts(bucket):
@@ -223,6 +233,10 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
     product_detection_method_counts = _detection_counts(product)
     service_resolved = [i for i in service if i.status == "Resolved"]
     product_resolved = [i for i in product if i.status == "Resolved"]
+    service_total_count = len(service)
+    service_resolved_count = len(service_resolved)
+    product_total_count = len(product)
+    product_resolved_count = len(product_resolved)
 
     resolved_with_ais = [
         i for i in incidents if i.status == "Resolved" and i.action_items is not None
@@ -241,7 +255,12 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
         total_entities=total_entities,
         top_entities=top_entities,
         severity_counts=severity_counts,
-        status_counts=status_counts,
+        service_total_count=service_total_count,
+        service_resolved_count=service_resolved_count,
+        service_status_counts=service_status_counts,
+        product_total_count=product_total_count,
+        product_resolved_count=product_resolved_count,
+        product_status_counts=product_status_counts,
         service_detection_method_counts=service_detection_method_counts,
         product_detection_method_counts=product_detection_method_counts,
         mean_action_items=mean_action_items,
