@@ -145,6 +145,18 @@ def generate_jira_link(jira_url: str, incident_keys: list[str]):
     return base + urllib.parse.urlencode(params)
 
 
+def generate_jira_date_range_link(jira_url: str, start_date: str, end_date: str) -> str:
+    base = f"{jira_url}/jira/software/c/projects/IIM/issues?"
+    params = {
+        "jql": (
+            f"project = IIM AND issuetype = Incident"
+            f' AND "Declare Date" >= "{start_date}"'
+            f' AND "Declare Date" <= "{end_date}"'
+        )
+    }
+    return base + urllib.parse.urlencode(params)
+
+
 class JiraAPI:
     def __init__(
         self,
