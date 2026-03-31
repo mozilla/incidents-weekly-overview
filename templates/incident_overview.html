@@ -223,8 +223,8 @@
 
   <h1>Trends Summary</h1>
   <p>
-    Recent 6 weeks: {{ trends_summary.current.start | friendly_date }} to {{ trends_summary.current.end | friendly_date }}.
     Prior 6 weeks: {{ trends_summary.prior.start | friendly_date }} to {{ trends_summary.prior.end | friendly_date }}.
+    Recent 6 weeks: {{ trends_summary.current.start | friendly_date }} to {{ trends_summary.current.end | friendly_date }}.
   </p>
 
   {% set prior_ents = trends_summary.prior.top_entities %}
@@ -428,6 +428,11 @@
             <td></td>
           </tr>
         </table>
+        <p>
+          <a href="{{ prior_trends_link }}">See prior 6 weeks incidents in Jira</a>
+          &mdash;
+          <a href="{{ recent_trends_link }}">See recent 6 weeks incidents in Jira</a>
+        </p>
         <p>
           * <em>pvar</em> is the relative variance (population variance /
           mean<sup>2</sup>). A value &gt; 1.5 means there's high spread, the
