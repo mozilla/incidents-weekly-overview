@@ -18,6 +18,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from iim.libjira import (
     JiraAPI,
     fix_jira_incident_data,
+    generate_jira_date_range_link,
     generate_jira_link,
 )
 from iim.libstats import (
@@ -71,6 +72,13 @@ def iim_weekly_report(ctx, friday_date):
         fix_jira_incident_data(jira_url=jira_client.base_url, incident=incident)
         for incident in issue_data
     ]
+    if not incidents:
+        click.echo(
+            "No incidents were fetched. Check your API token to see if it has "
+            "expired. If so, create a new one.",
+            err=True,
+        )
+        ctx.exit(1)
 
     # shift to last week, floor('week') gets monday, shift 4 days to friday
     if friday_date:
@@ -172,6 +180,16 @@ def iim_weekly_report(ctx, friday_date):
             incident_keys=[item.key for item in recently_resolved if item.key],
         ),
         trends_summary=trends_summary,
+        prior_trends_link=generate_jira_date_range_link(
+            jira_url=jira_client.base_url,
+            start_date=prior_start,
+            end_date=current_start,
+        ),
+        recent_trends_link=generate_jira_date_range_link(
+            jira_url=jira_client.base_url,
+            start_date=current_start,
+            end_date=this_friday,
+        ),
     )
     inliner = css_inline.CSSInliner()
     fixed_html = inliner.inline(html)
