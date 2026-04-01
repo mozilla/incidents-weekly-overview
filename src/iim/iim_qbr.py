@@ -311,8 +311,8 @@ def iim_qbr(ctx, quarter, fmt):
         *(
             (
                 f"Severity: {sev}",
-                f"{prev_stats.severity_counts[sev]:2.2f}%",
-                f"{stats.severity_counts[sev]:2.2f}%",
+                f"{prev_stats.severity_counts[sev]:2.0f}%",
+                f"{stats.severity_counts[sev]:2.0f}%",
                 f"{pct_change(prev_stats.severity_counts[sev], stats.severity_counts[sev]):2.2f}%",
             )
             for sev in ("S1", "S2", "S3", "S4")
