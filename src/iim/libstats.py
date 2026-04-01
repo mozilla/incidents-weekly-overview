@@ -41,26 +41,32 @@ class PeriodStats:
     ]  # {"Manual": %, "Automation": %} as 0-100, excludes unknown, product bucket only
     service_mean_tt_dec: Optional[timedelta]
     service_mean_tt_alert: Optional[timedelta]
+    service_mean_tt_resp: Optional[timedelta]
     service_mean_tt_mit: Optional[timedelta]
     service_mean_tt_res: Optional[timedelta]
     service_pvariance_tt_dec: Optional[float]  # seconds²
     service_pvariance_tt_alert: Optional[float]  # seconds²
+    service_pvariance_tt_resp: Optional[float]  # seconds²
     service_pvariance_tt_mit: Optional[float]  # seconds²
     service_pvariance_tt_res: Optional[float]  # seconds²
     service_count_tt_dec: int
     service_count_tt_alert: int
+    service_count_tt_resp: int
     service_count_tt_mit: int
     service_count_tt_res: int
     product_mean_tt_dec: Optional[timedelta]
     product_mean_tt_alert: Optional[timedelta]
+    product_mean_tt_resp: Optional[timedelta]
     product_mean_tt_mit: Optional[timedelta]
     product_mean_tt_res: Optional[timedelta]
     product_pvariance_tt_dec: Optional[float]  # seconds²
     product_pvariance_tt_alert: Optional[float]  # seconds²
+    product_pvariance_tt_resp: Optional[float]  # seconds²
     product_pvariance_tt_mit: Optional[float]  # seconds²
     product_pvariance_tt_res: Optional[float]  # seconds²
     product_count_tt_dec: int
     product_count_tt_alert: int
+    product_count_tt_resp: int
     product_count_tt_mit: int
     product_count_tt_res: int
     mean_action_items: Optional[
@@ -266,30 +272,40 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
         mean_action_items=mean_action_items,
         service_mean_tt_dec=mean_timedelta([i.tt_declared for i in service]),
         service_mean_tt_alert=mean_timedelta([i.tt_alerted for i in service]),
+        service_mean_tt_resp=mean_timedelta([i.tt_responded for i in service]),
         service_mean_tt_mit=mean_timedelta([i.tt_mitigated for i in service]),
         service_mean_tt_res=mean_timedelta([i.tt_resolved for i in service_resolved]),
         service_pvariance_tt_dec=pvariance_timedelta([i.tt_declared for i in service]),
         service_pvariance_tt_alert=pvariance_timedelta([i.tt_alerted for i in service]),
+        service_pvariance_tt_resp=pvariance_timedelta(
+            [i.tt_responded for i in service]
+        ),
         service_pvariance_tt_mit=pvariance_timedelta([i.tt_mitigated for i in service]),
         service_pvariance_tt_res=pvariance_timedelta(
             [i.tt_resolved for i in service_resolved]
         ),
         service_count_tt_dec=count_timedelta([i.tt_declared for i in service]),
         service_count_tt_alert=count_timedelta([i.tt_alerted for i in service]),
+        service_count_tt_resp=count_timedelta([i.tt_responded for i in service]),
         service_count_tt_mit=count_timedelta([i.tt_mitigated for i in service]),
         service_count_tt_res=count_timedelta([i.tt_resolved for i in service_resolved]),
         product_mean_tt_dec=mean_timedelta([i.tt_declared for i in product]),
         product_mean_tt_alert=mean_timedelta([i.tt_alerted for i in product]),
+        product_mean_tt_resp=mean_timedelta([i.tt_responded for i in product]),
         product_mean_tt_mit=mean_timedelta([i.tt_mitigated for i in product]),
         product_mean_tt_res=mean_timedelta([i.tt_resolved for i in product_resolved]),
         product_pvariance_tt_dec=pvariance_timedelta([i.tt_declared for i in product]),
         product_pvariance_tt_alert=pvariance_timedelta([i.tt_alerted for i in product]),
+        product_pvariance_tt_resp=pvariance_timedelta(
+            [i.tt_responded for i in product]
+        ),
         product_pvariance_tt_mit=pvariance_timedelta([i.tt_mitigated for i in product]),
         product_pvariance_tt_res=pvariance_timedelta(
             [i.tt_resolved for i in product_resolved]
         ),
         product_count_tt_dec=count_timedelta([i.tt_declared for i in product]),
         product_count_tt_alert=count_timedelta([i.tt_alerted for i in product]),
+        product_count_tt_resp=count_timedelta([i.tt_responded for i in product]),
         product_count_tt_mit=count_timedelta([i.tt_mitigated for i in product]),
         product_count_tt_res=count_timedelta([i.tt_resolved for i in product_resolved]),
     )

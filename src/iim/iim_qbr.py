@@ -59,12 +59,17 @@ def tt_in_seconds(tt_value: Optional[timedelta]) -> Optional[float]:
     return tt_value.total_seconds()
 
 
-def count_reviewed(date_start, date_end, review_data):
-    """Count unique incident keys reviewed in meetings within [date_start, date_end]."""
+def count_reviewed(date_start, date_end, review_data, incident_keys=None):
+    """Count unique incident keys reviewed in meetings within [date_start, date_end].
+
+    If incident_keys is provided, only count keys that appear in that set.
+    """
     reviewed = set()
     for review_date, keys in review_data.items():
         if date_start <= arrow.get(review_date) <= date_end:
             reviewed.update(keys)
+    if incident_keys is not None:
+        reviewed = reviewed & incident_keys
     return len(reviewed)
 
 
@@ -256,8 +261,10 @@ def iim_qbr(ctx, quarter, fmt):
                 ]
             )
 
-    curr_reviewed = count_reviewed(date_start, date_end, review_data)
-    prev_reviewed = count_reviewed(prev_start, prev_end, review_data)
+    curr_svc_keys = {i.key for i in by_bucket(these, "service")}
+    prev_svc_keys = {i.key for i in by_bucket(prev, "service")}
+    curr_reviewed = count_reviewed(date_start, date_end, review_data, curr_svc_keys)
+    prev_reviewed = count_reviewed(prev_start, prev_end, review_data, prev_svc_keys)
     curr_s1s2_pct = s1s2_reviewed_pct(
         date_start, date_end, by_bucket(these, "service"), review_data
     )
@@ -277,8 +284,8 @@ def iim_qbr(ctx, quarter, fmt):
             * 100
         )
 
-    all_auto_prev = auto_pct(prev)
-    all_auto_curr = auto_pct(these)
+    all_auto_prev = auto_pct(by_bucket(prev, "service"))
+    all_auto_curr = auto_pct(by_bucket(these, "service"))
     all_mtt_alerted_prev = mean_timedelta([i.tt_alerted for i in prev])
     all_mtt_alerted_curr = mean_timedelta([i.tt_alerted for i in these])
     all_mtt_responded_prev = mean_timedelta([i.tt_responded for i in prev])
@@ -308,39 +315,73 @@ def iim_qbr(ctx, quarter, fmt):
             str(stats.total_incidents),
             f"{pct_change(prev_stats.total_incidents, stats.total_incidents):2.2f}%",
         ),
-        *(
-            (
-                f"Severity: {sev}",
-                f"{prev_stats.severity_counts[sev]:2.0f}%",
-                f"{stats.severity_counts[sev]:2.0f}%",
-                f"{pct_change(prev_stats.severity_counts[sev], stats.severity_counts[sev]):2.2f}%",
-            )
-            for sev in ("S1", "S2", "S3", "S4")
+        (
+            "Total incidents (services)",
+            str(prev_service_stats.total_incidents),
+            str(service_stats.total_incidents),
+            f"{pct_change(prev_service_stats.total_incidents, service_stats.total_incidents):2.2f}%",
         ),
         (
-            "Impacted entities",
-            str(prev_stats.total_entities),
-            str(stats.total_entities),
-            f"{pct_change(prev_stats.total_entities, stats.total_entities):2.2f}%",
-        ),
-        (
-            "Incidents reviewed",
+            "Number of incidents reviewed (services)",
             str(prev_reviewed),
             str(curr_reviewed),
             f"{pct_change(prev_reviewed, curr_reviewed):2.2f}%",
         ),
         (
-            "Service S1/S2 incidents reviewed",
+            "Percent S1/S2 incidents reviewed (services)",
             f"{prev_s1s2_pct:2.2f}%",
             f"{curr_s1s2_pct:2.2f}%",
             f"{pct_change(prev_s1s2_pct, curr_s1s2_pct):2.2f}%",
         ),
         (
-            "Detection: automation",
+            "Number of impacted entities (services)",
+            str(prev_service_stats.total_entities),
+            str(service_stats.total_entities),
+            f"{pct_change(prev_service_stats.total_entities, service_stats.total_entities):2.2f}%",
+        ),
+        *(
+            (
+                f"Severity: {sev} (services)",
+                f"{prev_service_stats.severity_counts[sev]:2.0f}%",
+                f"{service_stats.severity_counts[sev]:2.0f}%",
+                f"{pct_change(prev_service_stats.severity_counts[sev], service_stats.severity_counts[sev]):2.2f}%",
+            )
+            for sev in ("S1", "S2", "S3", "S4")
+        ),
+        (
+            "Detection: automation (services)",
             f"{all_auto_prev:2.2f}%",
             f"{all_auto_curr:2.2f}%",
             f"{pct_change(all_auto_prev, all_auto_curr):2.2f}%",
         ),
+        (
+            "MTT alerted (services)",
+            humanize_timedelta(prev_service_stats.service_mean_tt_alert),
+            humanize_timedelta(service_stats.service_mean_tt_alert),
+            td_pct_change(
+                prev_service_stats.service_mean_tt_alert,
+                service_stats.service_mean_tt_alert,
+            ),
+        ),
+        (
+            "MTT responded (services)",
+            humanize_timedelta(prev_service_stats.service_mean_tt_resp),
+            humanize_timedelta(service_stats.service_mean_tt_resp),
+            td_pct_change(
+                prev_service_stats.service_mean_tt_resp,
+                service_stats.service_mean_tt_resp,
+            ),
+        ),
+        (
+            "MTT mitigated (services)",
+            humanize_timedelta(prev_service_stats.service_mean_tt_mit),
+            humanize_timedelta(service_stats.service_mean_tt_mit),
+            td_pct_change(
+                prev_service_stats.service_mean_tt_mit,
+                service_stats.service_mean_tt_mit,
+            ),
+        ),
+        ([]),
         (
             "MTT alerted",
             humanize_timedelta(all_mtt_alerted_prev),
