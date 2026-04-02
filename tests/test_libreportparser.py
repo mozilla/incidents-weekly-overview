@@ -413,6 +413,36 @@ Template version 2026.03.12
     assert report.template_version == "2026.03.12"
 
 
+def test_parse_markdown_selects_v20260312_parser_for_unknown_version():
+    """parse_markdown defaults to ReportParser20260312 for new template versions."""
+    md = """\
+# Incident: Parser selection test
+
+Template version 2099.01.01
+
+| **Jira Ticket/Bug Number** | [IIM-999](https://jira.example.net/browse/IIM-999) |
+| :---- | :---- |
+| **Current Status** | Resolved |
+| **Detection method** | **Automated Alert** |
+
+# Postmortem Action Items
+
+| Jira Ticket + Status | Ticket Title |
+| :---- | :---- |
+"""
+    report = parse_markdown(md)
+    assert report.key == "IIM-999"
+    assert report.status == "Resolved"
+    assert report.template_version == "2026.03.12"
+
+
+def test_parse_markdown_selects_v20250520_parser():
+    """parse_markdown selects ReportParser20250520 when no template version is present."""
+    md = (REPORTS_DIR / "20250520" / "incident_service_alpha.md").read_text()
+    report = parse_markdown(md)
+    assert report.template_version == "2025.05.20"
+
+
 # ---------------------------------------------------------------------------
 # ReportParserPre20250520.metadata_list_to_report
 # ---------------------------------------------------------------------------
