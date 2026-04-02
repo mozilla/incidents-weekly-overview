@@ -67,13 +67,24 @@ def bugzilla_id(url: Optional[str]) -> Optional[str]:
 
 ESSENCE_RE = re.compile(r"action: \[([^\]]+)\] (\S+) (.*)")
 
+ENTITY_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9-]*$")
+
 
 def normalize_entities(value: str | None) -> str | None:
-    """Normalize a comma-separated entities string to sorted, lowercased, ', '-delimited form."""
+    """Normalize a comma-separated entities string to sorted, lowercased, ', '-delimited form.
+
+    Only keeps entries that look like service/product codes (single words, possibly
+    hyphenated). Rejects prose descriptions or other non-code values.
+
+    """
     if not value or not value.strip():
         return None
-    parts = [p.strip().lower() for p in value.split(",") if p.strip()]
-    return ", ".join(sorted(parts))
+    parts = [
+        p.strip().lower()
+        for p in value.split(",")
+        if p.strip() and ENTITY_RE.match(p.strip())
+    ]
+    return ", ".join(sorted(parts)) or None
 
 
 @dataclass

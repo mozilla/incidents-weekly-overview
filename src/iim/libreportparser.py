@@ -733,7 +733,7 @@ class ReportParserPre20250520(ReportParser):
 def parse_markdown(md):
     report = IncidentReport()
 
-    if "Template version 2026.03.12" in md:
+    if "Template version 2026.03.12" in md or "Template version 2026.03.27" in md:
         parser = ReportParser20260312()
     elif "* **Incident Jira Ticket**" in md:
         parser = ReportParserPre20250520()
