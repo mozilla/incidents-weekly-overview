@@ -140,6 +140,13 @@ def test_get_text(md, keep_links, expected):
         ("  fxa,  fenix", "fenix, fxa"),
         ("FXA, Fenix", "fenix, fxa"),
         ("testreport, incidents", "incidents, testreport"),
+        # rejects prose descriptions
+        ("NewTab ad requests – effects here mitigated by caching", None),
+        ("some long description of the impact", None),
+        # rejects entries with spaces but keeps valid ones
+        ("fenix, not a service code, fxa", "fenix, fxa"),
+        # hyphenated codes are valid
+        ("focus-android, fenix", "fenix, focus-android"),
     ],
 )
 def test_normalize_entities(value, expected):
