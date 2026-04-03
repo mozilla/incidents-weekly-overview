@@ -76,7 +76,10 @@ def iim_sync(client_secret_file: str, dry_run: bool, url_or_key: tuple[str, ...]
 
     drive_service = build_service(client_secret_file)
 
-    for url in urls:
+    total = len(urls)
+    for i, url in enumerate(urls, start=1):
+        click.echo(f"Working on ({i}/{total}) {url} ...")
+
         # Step 1: extract issue key
         issue_key = jira_key(url)
         if not issue_key:
