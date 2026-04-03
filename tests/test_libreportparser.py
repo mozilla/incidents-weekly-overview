@@ -115,6 +115,13 @@ def test_extract_timestamp(text, expected):
         # link with no visible text falls back to "Link"
         ("[](https://example.com/)", True, "[Link](https://example.com/)"),
         ("[](https://example.com/)", False, "Link"),
+        # anchor ids from Google Docs export are stripped
+        ("heading text {#heading-text}", True, "heading text"),
+        (
+            "Phabricator returned HTTP 504 {#incident:-phabricator-(2026-03-23)}",
+            True,
+            "Phabricator returned HTTP 504",
+        ),
     ],
 )
 def test_get_text(md, keep_links, expected):
