@@ -328,7 +328,9 @@ class ReportParser20250520(ReportParser):
             return
 
         report.action_items = []
-        for row_items in _table_to_rows(table_token):
+        rows = list(_table_to_rows(table_token))
+        # Skip header and separator rows
+        for row_items in rows[2:]:
             cells = _row_to_cells(row_items)
             if len(cells) < 3:
                 continue
@@ -342,19 +344,14 @@ class ReportParser20250520(ReportParser):
             if title:
                 title = title.splitlines()[0]
 
-            # Skip header and separator rows
             if not title and not ticket_text:
-                continue
-            if re.match(r"^[\s:\-]+$", ticket_text):
-                continue
-            if "jira ticket" in ticket_text.lower() or "ticket title" in title.lower():
                 continue
 
             url = next(_cell_link_dests(ticket_cell), None)
             # Drop action items whose URL is a mailto or the template placeholder
             if url and url.startswith("mailto:"):
                 continue
-            if url == "https://mozilla-hub.atlassian.net/browse/":
+            if url and urlsplit(url).path == "/browse/":
                 continue
             status = self._extract_action_item_status(ticket_cell)
 
@@ -619,7 +616,9 @@ class ReportParserPre20250520(ReportParser):
             return
 
         report.action_items = []
-        for row_items in _table_to_rows(table_token):
+        rows = list(_table_to_rows(table_token))
+        # Skip header and separator rows
+        for row_items in rows[2:]:
             cells = _row_to_cells(row_items)
             if len(cells) < 3:
                 continue
@@ -634,15 +633,11 @@ class ReportParserPre20250520(ReportParser):
 
             if not title and not ticket_text:
                 continue
-            if re.match(r"^[\s:\-]+$", ticket_text):
-                continue
-            if "jira ticket" in ticket_text.lower() or "ticket title" in title.lower():
-                continue
 
             url = next(_cell_link_dests(ticket_cell), None)
             if url and url.startswith("mailto:"):
                 continue
-            if url == "https://mozilla-hub.atlassian.net/browse/":
+            if url and urlsplit(url).path == "/browse/":
                 continue
             status = self._extract_action_item_status(ticket_cell)
 
