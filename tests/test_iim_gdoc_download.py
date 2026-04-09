@@ -4,11 +4,12 @@
 
 from unittest.mock import MagicMock, patch
 
+import click
 import pytest
 from click.testing import CliRunner
 from googleapiclient.errors import HttpError
 
-from iim.iim_gdoc_download import iim_gdoc_download, title_to_filename
+from iim.iim_gdoc_download import iim_gdoc_download, resolve_gdoc_url, title_to_filename
 from iim.libgdoc import extract_doc_id
 
 
@@ -328,3 +329,73 @@ def test_cli_creates_output_dir(runner, client_secret_file, tmp_path):
     )
     assert result.exit_code == 0
     assert (output_dir / "my_document.md").exists()
+
+
+# ---------------------------------------------------------------------------
+# resolve_gdoc_url
+# ---------------------------------------------------------------------------
+
+JIRA_URL = "https://jira.example.net"
+
+
+def _make_jira_description(doc_url):
+    return {
+        "version": 1,
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "inlineCard",
+                        "attrs": {"url": doc_url},
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def test_resolve_gdoc_url_passes_through_gdoc_url():
+    result = resolve_gdoc_url(DOC_URL, jira_client=None)
+    assert result == DOC_URL
+
+
+def test_resolve_gdoc_url_bare_jira_key():
+    mock_client = MagicMock()
+    mock_client.get_issue.return_value = {
+        "fields": {"description": _make_jira_description(DOC_URL)}
+    }
+    result = resolve_gdoc_url("IIM-42", mock_client)
+    assert result == DOC_URL
+    mock_client.get_issue.assert_called_once_with("IIM-42")
+
+
+def test_resolve_gdoc_url_jira_browse_url():
+    mock_client = MagicMock()
+    mock_client.get_issue.return_value = {
+        "fields": {"description": _make_jira_description(DOC_URL)}
+    }
+    result = resolve_gdoc_url(f"{JIRA_URL}/browse/IIM-99", mock_client)
+    assert result == DOC_URL
+    mock_client.get_issue.assert_called_once_with("IIM-99")
+
+
+def test_resolve_gdoc_url_jira_key_no_doc():
+    mock_client = MagicMock()
+    mock_client.get_issue.return_value = {
+        "fields": {
+            "description": {
+                "version": 1,
+                "type": "doc",
+                "content": [{"type": "paragraph", "content": []}],
+            }
+        }
+    }
+    with pytest.raises(click.ClickException, match="has no Google Doc link"):
+        resolve_gdoc_url("IIM-42", mock_client)
+
+
+def test_resolve_gdoc_url_jira_key_no_credentials():
+    with pytest.raises(click.UsageError, match="looks like a Jira key"):
+        resolve_gdoc_url("IIM-42", jira_client=None)
