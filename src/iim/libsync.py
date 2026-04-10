@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 import click
+import requests
 import rich
 from rich.table import Table
 
@@ -279,26 +280,53 @@ def apply_changes(
             continue
 
         old_item, new_item = item.from_to
-        if item.new_value and not item.old_value:
-            # Item needs to be added
-            assert new_item is not None
-            linked_key = jira_key(new_item.url)
-            if linked_key:
-                jira_client.add_issue_link(issue_key, linked_key)
+        ref_item = new_item or old_item
+        action_label = (
+            jira_key(ref_item.url) or ref_item.url if ref_item else "unknown"
+        ) or "unknown"
+
+        try:
+            if item.new_value and not item.old_value:
+                # Item needs to be added
+                assert new_item is not None
+                linked_key = jira_key(new_item.url)
+                if linked_key:
+                    jira_client.add_issue_link(issue_key, linked_key)
+                else:
+                    jira_client.add_remote_link(issue_key, new_item)
+            elif item.old_value and not item.new_value:
+                # Item needs to be removed
+                assert old_item is not None
+                linked_key = jira_key(old_item.url)
+                if linked_key:
+                    if old_item.jira_id is None:
+                        click.secho(
+                            f"[ERR] {action_label} couldn't be removed: "
+                            f"missing link ID.",
+                            fg="bright_yellow",
+                        )
+                        continue
+                    jira_client.remove_issue_link(old_item.jira_id)
+                else:
+                    jira_client.remove_remote_link(issue_key, old_item)
             else:
-                jira_client.add_remote_link(issue_key, new_item)
-        elif item.old_value and not item.new_value:
-            # Item needs to be removed
-            assert old_item is not None
-            linked_key = jira_key(old_item.url)
-            if linked_key:
-                assert old_item.jira_id is not None
-                jira_client.remove_issue_link(old_item.jira_id)
-            else:
+                # Item needs to be updated--old one removed and new one added
+                assert old_item is not None
+                assert new_item is not None
                 jira_client.remove_remote_link(issue_key, old_item)
-        else:
-            # Item needs to be updated--old one removed and new one added
-            assert old_item is not None
-            assert new_item is not None
-            jira_client.remove_remote_link(issue_key, old_item)
-            jira_client.add_remote_link(issue_key, new_item)
+                jira_client.add_remote_link(issue_key, new_item)
+        except requests.HTTPError as exc:
+            resp = exc.response
+            status = resp.status_code if resp is not None else "?"
+            reason = resp.reason.lower() if resp is not None else str(exc)
+            if item.new_value and not item.old_value:
+                verb = "added"
+            elif item.old_value and not item.new_value:
+                verb = "removed"
+            else:
+                verb = "updated"
+            click.secho(
+                f"[ERR] {action_label} couldn't be {verb}. "
+                f"got back HTTP {status}: {reason}.",
+                fg="bright_yellow",
+            )
