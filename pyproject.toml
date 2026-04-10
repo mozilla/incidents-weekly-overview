@@ -25,6 +25,7 @@ dependencies = [
 [project.scripts]
 convert-timezone = "iim.convert_timezone:convert_timezone"
 iim-data = "iim.iim_data:iim_data"
+iim-incident-data = "iim.iim_incident_data:iim_incident_data"
 iim-gdoc-download = "iim.iim_gdoc_download:iim_gdoc_download"
 iim-gdocs-to-jira = "iim.iim_gdocs_to_jira:iim_google_docs_to_jira"
 iim-lint = "iim.iim_lint:iim_lint"
