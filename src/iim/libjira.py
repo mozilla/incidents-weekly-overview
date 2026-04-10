@@ -321,13 +321,7 @@ class JiraAPI:
         response = requests.post(
             url, auth=self.auth, headers=headers, json=payload, timeout=30
         )
-        # NOTE(willkg): Ignore 401 which occurs when we're trying to link to an
-        # issue in an archived space.
-        # FIXME(willkg): Ignore 404 which occurs when the token belongs to a
-        # Jira account that doesn't have access to the issue being linked. Need
-        # to figure out a better way to handle this.
-        if response.status_code not in (200, 201, 401, 404):
-            print(response.json())
+        if response.status_code not in (200, 201):
             response.raise_for_status()
 
     def remove_issue_link(self, link_id: str) -> None:
