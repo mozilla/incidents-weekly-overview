@@ -45,7 +45,7 @@ def extract_jira_key(url: str) -> str:
 
 
 def extract_timestamp(value):
-    """Extract datetime or date and return in YYYY-MM-DD hh:mm format"""
+    """Extract first datetime or date and return in YYYY-MM-DD hh:mm format"""
     if value is None:
         return None
 
@@ -61,6 +61,40 @@ def extract_timestamp(value):
     if match:
         return match[0] + " 00:00"
     return None
+
+
+def extract_last_timestamp(value):
+    """Extract last datetime or date and return in YYYY-MM-DD hh:mm format.
+
+    When a field contains multiple timestamps interleaved with prose,
+    returns the last one found.
+
+    """
+    if value is None:
+        return None
+
+    # Collect all timestamps with positions, preferring more specific patterns
+    timestamps = []
+    covered_starts = set()
+
+    for match in ISO_DATETIME_RE.finditer(value):
+        timestamps.append((match.start(), f"{match[1]} {match[2]}"))
+        covered_starts.add(match.start())
+
+    for match in DATETIME_RE.finditer(value):
+        if match.start() not in covered_starts:
+            timestamps.append((match.start(), match[0]))
+            covered_starts.add(match.start())
+
+    for match in DATE_RE.finditer(value):
+        if match.start() not in covered_starts:
+            timestamps.append((match.start(), match[0] + " 00:00"))
+
+    if not timestamps:
+        return None
+
+    timestamps.sort(key=lambda x: x[0])
+    return timestamps[-1][1]
 
 
 def is_header(token):
@@ -486,8 +520,8 @@ class ReportParser20260312(ReportParser20250520):
         report.alerted = extract_timestamp(md_table.get("alerted"))
         report.acknowledged = extract_timestamp(md_table.get("acknowledged"))
         report.responded = extract_timestamp(md_table.get("responded"))
-        report.mitigated = extract_timestamp(md_table.get("mitigated"))
-        report.resolved = extract_timestamp(md_table.get("resolved"))
+        report.mitigated = extract_last_timestamp(md_table.get("mitigated"))
+        report.resolved = extract_last_timestamp(md_table.get("resolved"))
 
         # declare date isn't in the table--we derive it from declared
         if report.declared:
