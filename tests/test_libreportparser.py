@@ -16,6 +16,7 @@ from iim.libreportparser import (
     ReportParserPre20250520,
     extract_jira_key,
     extract_jira_iim_url,
+    extract_last_timestamp,
     extract_timestamp,
     get_text,
     is_table,
@@ -91,6 +92,45 @@ def test_extract_jira_key_no_key():
 )
 def test_extract_timestamp(text, expected):
     assert extract_timestamp(text) == expected
+
+
+# ---------------------------------------------------------------------------
+# extract_last_timestamp
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # single timestamp -- same as extract_timestamp
+        ("2026-03-31 15:26", "2026-03-31 15:26"),
+        ("2026-03-31", "2026-03-31 00:00"),
+        ("2025-01-27T16:00:00Z", "2025-01-27 16:00"),
+        (None, None),
+        ("no dates here", None),
+        # multiple timestamps -- returns the last one
+        (
+            "2026-03-31 15:26\nLatency issue fixed.\n2026-03-31 20:00\nephemeral storage issues mitigated",
+            "2026-03-31 20:00",
+        ),
+        (
+            "2026-03-31 15:26\ntext\n2026-03-31 20:00\nmore text\n2026-04-02 08:00\nfluentbit started to back up.",
+            "2026-04-02 08:00",
+        ),
+        # skips invalid dates (5-digit year)
+        (
+            "2026-03-31 15:26\ntext\n20265-03-31 20:00\ntext\n2026-04-02 08:00\ntext",
+            "2026-04-02 08:00",
+        ),
+        # mixed datetime and date-only -- returns last by position
+        (
+            "2026-03-31 15:26\ntext\n2026-04-02",
+            "2026-04-02 00:00",
+        ),
+    ],
+)
+def test_extract_last_timestamp(text, expected):
+    assert extract_last_timestamp(text) == expected
 
 
 # ---------------------------------------------------------------------------
