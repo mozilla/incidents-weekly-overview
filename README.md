@@ -27,8 +27,8 @@ To generate an API token:
 
 ## Google Drive API credentials
 
-The `iim-data` and `iim-gdoc-download` commands require Google Drive API
-credentials. One-time setup:
+The `iim-data`, `iim-gdoc-download`, `iim-incident-data`, `iim-sync`, and
+`iim-lint` commands require Google Drive API credentials. One-time setup:
 
 1. Go to the [Google Cloud Console](https://console.cloud.google.com/) and
    create a project (or select an existing one).
@@ -49,41 +49,68 @@ Run `uv sync` from the repository root to install the package and its
 dependencies.
 
 
-# usage
+# Usage
 
-`uv run iim-active`
+`uv run iim-data [--active-only] [--output all|report-urls|jira-urls]`
 
-Queries Jira and outputs a list of active incidents.
+Lists all incidents from Jira. Use `--active-only` to show only active
+incidents, recently resolved incidents, and those with recently updated
+reports. Use `--output` to control the output format.
 
-`uv run iim-gdocs-to-jira FILE [FILE...]`
+`uv run iim-incident-data ISSUE_KEY`
 
-Given a set of Markdown files generated from doing "File -> Download ->
-Markdown" in Google Docs for each incident report, this queries Jira,
-determines what needs to be updated, and updates it.
+Downloads Jira data for a single incident (e.g. `IIM-141`) and outputs it as
+JSON. Useful for debugging.
 
-By default, this makes no changes. You must pass the `--commit` flag to have it
-push changes to Jira.
-
-**Note: Make sure your Markdown files aren't stale.**
-
-`uv run iim-gdoc-download GDOC_URL [GDOC_URL...]`
+`uv run iim-gdoc-download [SOURCE...]`
 
 Downloads one or more Google Docs as Markdown files into the `reports/`
-directory. URLs can also be piped via stdin.
+directory. Sources can be Google Doc URLs, Jira issue keys (e.g. `IIM-123`),
+or Jira browse URLs. If no arguments are given, reads one source per line from
+stdin.
 
-`uv run iim-weekly-overview`
+`uv run iim-gdocs-to-jira [--dry-run] FILE [FILE...]`
+
+Parses incident report Markdown files (exported from Google Docs via
+*File → Download → Markdown*) and syncs their metadata back to Jira.
+Pushes changes by default; pass `--dry-run` to preview the diff without
+committing anything.
+
+`uv run iim-sync [--dry-run] [URL_OR_KEY...]`
+
+Downloads the Google Doc for each incident, shows a diff against the current
+Jira data, and interactively lets you apply, skip, or retry each change. Pass
+`--dry-run` to show the diff without pushing changes to Jira. Accepts full
+Jira browse URLs or bare issue keys (e.g. `IIM-131`); reads from stdin if no
+arguments are given.
+
+`uv run iim-lint [ARGS...]`
+
+Lints IIM incident issues for data quality problems. Arguments can be Jira
+issue keys, Jira browse URLs, or Google Doc URLs. Use `--list-rules` to see
+all available rules and `--errors-only` to suppress warnings.
+
+`uv run iim-to-review`
+
+Lists resolved incidents that have not yet been marked as completed.
+
+`uv run iim-mpir-selection [--weeks N]`
+
+Lists service incidents declared in the last N weeks (default: 5) as
+candidates for the monthly post-incident review meeting.
+
+`uv run iim-weekly-overview [--friday YYYY-MM-DD]`
 
 Queries Jira and generates a weekly overview as HTML in the
-`incident_overviews` directory.
+`incident_overviews/` directory. Defaults to the current week's Friday; pass
+`--friday` to generate for a specific date.
 
-You can then open this in Firefox and copy-and-paste it into an email to send
-to the incidents-overview mailing list.
+You can then open the output file in Firefox and copy-and-paste it into an
+email to send to the incidents-overview mailing list.
 
 `uv run iim-qbr PERIOD`
 
-Queries Jira and computes QBR statistics for the specified period. Uses
-`monthly_review_data.json` (in the working directory) to determine which
-incidents were reviewed and how many S1/S2 incidents were reviewed.
+Queries Jira and computes QBR statistics for the specified period.
 
 PERIOD can be one of:
 
@@ -94,7 +121,12 @@ PERIOD can be one of:
 Outputs a summary table to the terminal and writes a CSV of incident data to
 `qbr_stats_PERIOD.csv`.
 
-# dev things
+`uv run convert-timezone`
+
+Converts timestamps from local timezone to UTC, handling DST correctly.
+
+
+# Dev things
 
 Uses [just](https://just.systems/) for project commands.
 
