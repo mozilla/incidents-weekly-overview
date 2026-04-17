@@ -480,7 +480,7 @@
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
               <span class="entity">{{ item.entity_bucket }}</span>
-              {% for entity in item.entities.split(',') %}
+              {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
@@ -526,7 +526,7 @@
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
               <span class="entity">{{ item.entity_bucket }}</span>
-              {% for entity in item.entities.split(',') %}
+              {% for entity in item.entities | split_entities %}
                 <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
@@ -572,7 +572,7 @@
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
               <span class="entity">{{ item.entity_bucket }}</span>
-              {% for entity in item.entities.split(',') %}
+              {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
@@ -618,7 +618,7 @@
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
               <span class="entity">{{ item.entity_bucket }}</span>
-              {% for entity in item.entities.split(',') %}
+              {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
