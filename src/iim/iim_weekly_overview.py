@@ -35,6 +35,12 @@ OVERVIEWS_DIR = "incident_overviews"
 load_dotenv()
 
 
+def split_entities(entities: str | None) -> list[str]:
+    if entities is None:
+        return []
+    return entities.split(",")
+
+
 def friendly_date(date_str: str) -> str:
     """Convert YYYY-MM-DD to 'Month D, YYYY' format."""
     dt = arrow.get(date_str)
@@ -146,6 +152,7 @@ def iim_weekly_report(ctx, friday_date):
     )
     env.filters["humanize_timedelta"] = humanize_timedelta
     env.filters["friendly_date"] = friendly_date
+    env.filters["split_entities"] = split_entities
     env.globals["direction_symbol"] = cast(Any, direction_symbol)
     env.globals["format_pvar"] = cast(Any, format_pvar)
 
