@@ -9,12 +9,14 @@ Shared Google Drive utilities.
 import io
 import os
 import re
+import time
 
 import arrow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
 
 
@@ -36,33 +38,42 @@ class BadGdocId(Exception):
     pass
 
 
+MAX_DOWNLOAD_RETRIES = 3
+
+
 def download_gdoc(drive_service, url):
     try:
         doc_id = extract_doc_id(url)
     except ValueError as e:
         raise BadGdocId(str(e))
 
-    meta = (
-        drive_service.files()
-        .get(fileId=doc_id, fields="name", supportsAllDrives=True)
-        .execute()
-    )
+    for attempt in range(MAX_DOWNLOAD_RETRIES):
+        try:
+            meta = (
+                drive_service.files()
+                .get(fileId=doc_id, fields="name", supportsAllDrives=True)
+                .execute()
+            )
 
-    docname = meta["name"]
+            docname = meta["name"]
 
-    request = drive_service.files().export_media(
-        fileId=doc_id, mimeType="text/x-markdown"
-    )
+            request = drive_service.files().export_media(
+                fileId=doc_id, mimeType="text/x-markdown"
+            )
 
-    buffer = io.BytesIO()
-    downloader = MediaIoBaseDownload(buffer, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
+            buffer = io.BytesIO()
+            downloader = MediaIoBaseDownload(buffer, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk()
 
-    content = buffer.getvalue().decode("utf-8")
+            return docname, buffer.getvalue().decode("utf-8")
 
-    return docname, content
+        except HttpError as e:
+            if e.resp.status == 500 and attempt < MAX_DOWNLOAD_RETRIES - 1:
+                time.sleep(1)
+                continue
+            raise
 
 
 def get_credentials(client_secret_file):
