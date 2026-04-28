@@ -7,6 +7,7 @@ Lists incidents data.
 """
 
 import os
+import re
 
 import arrow
 import click
@@ -20,14 +21,57 @@ from iim.libjira import JiraAPI, fix_jira_incident_data
 load_dotenv()
 
 
+PERIOD_RE = re.compile(r"^(\d+)(d|w|mo|y)$")
+
+DEFAULT_PERIOD = {
+    "working": "14d",
+    "resolved": "7d",
+    "dormant": "6mo",
+}
+
+
+def parse_period(s: str) -> arrow.Arrow:
+    """Parse a duration string (e.g. '7d', '2w', '6mo', '1y') and return the cutoff
+    timestamp (now minus the duration)."""
+    match = PERIOD_RE.match(s)
+    if not match:
+        raise click.BadParameter(
+            f"Invalid period {s!r}. Use Nd, Nw, Nmo, or Ny (e.g., 7d, 2w, 6mo, 1y)."
+        )
+    n = int(match.group(1))
+    unit = match.group(2)
+    now = arrow.now()
+    if unit == "d":
+        return now.shift(days=-n)
+    if unit == "w":
+        return now.shift(weeks=-n)
+    if unit == "mo":
+        return now.shift(months=-n)
+    return now.shift(years=-n)
+
+
 @click.command()
 @click.option(
-    "--active-only/--no-active-only",
-    default=False,
-    show_default=True,
+    "--show",
+    "show",
+    type=click.Choice(["working", "resolved", "active", "dormant"]),
+    default=None,
     help=(
-        "Whether or not to show active incidents, recently resolved incidents, and "
-        "incidents where the report has been updated recently."
+        "Filter incidents by view: 'working' (unresolved or report modified within "
+        "period), 'resolved' (resolved within period), 'active' (status is not "
+        "Resolved, no time filter), 'dormant' (unresolved and report not modified "
+        "within period). Omit to list all incidents."
+    ),
+)
+@click.option(
+    "--period",
+    "period",
+    default=None,
+    help=(
+        "Time window as a duration string: Nd (days), Nw (weeks), Nmo (months), "
+        "Ny (years). Examples: 7d, 2w, 6mo, 1y. "
+        "Defaults: --show working=14d, --show resolved=7d, --show dormant=6mo. "
+        "Ignored when --show=active."
     ),
 )
 @click.option(
@@ -48,21 +92,25 @@ load_dotenv()
     help="Path to the OAuth2 client secret JSON file",
 )
 @click.pass_context
-def iim_data(ctx, active_only, output, client_secret_file):
+def iim_data(ctx, show, period, output, client_secret_file):
     """
-    Lists all incidents. Can also list active incidents.
+    Lists incidents. Use --show to filter to a specific view.
 
     See `README.md` for setup instructions.
     """
+    if show == "active" and period:
+        click.echo("warning: --period is ignored when --show=active", err=True)
+    if show is None and period:
+        click.echo("warning: --period is ignored when --show is not set", err=True)
+
     jira = JiraAPI(
         base_url=os.environ["JIRA_URL"].strip(),
         username=os.environ["JIRA_USERNAME"].strip(),
         password=os.environ["JIRA_TOKEN"].strip(),
     )
 
-    drive_service = None
-    if output == "all" or active_only:
-        drive_service = build_service(client_secret_file)
+    needs_drive = output == "all" or show in ("working", "dormant")
+    drive_service = build_service(client_secret_file) if needs_drive else None
 
     issue_data = jira.get_all_issues_for_project(project_key="IIM")
 
@@ -77,42 +125,49 @@ def iim_data(ctx, active_only, output, client_secret_file):
     # Header -> list of incidents
     groups = {}
 
-    if active_only:
-        two_weeks_ago = arrow.now().shift(days=-14).format("YYYY-MM-DD")
-
-        # NOTE(willkg): It's possible for incidents to be marked "Resolved" and
-        # be missing a resolved timestamp. It's also possible for incidents to
-        # have a resolved timestamp and be marked as something other than
-        # "Resolved". Need to figure out what to do about that.
-        shown_keys = set()
-
-        resolved_incidents = [
+    if show == "working":
+        period_str = period or DEFAULT_PERIOD["working"]
+        cutoff = parse_period(period_str).format("YYYY-MM-DD")
+        selected = [
             item
             for item in incidents
-            if item.resolved and item.resolved > two_weeks_ago
+            if item.status != "Resolved"
+            or (item.report_modified and item.report_modified > cutoff)
         ]
-        header = f"Recently resolved incidents ({len(resolved_incidents)}):"
-        groups[header] = resolved_incidents
-        shown_keys.update([item.key for item in resolved_incidents])
+        header = (
+            f"Working incidents — unresolved or report touched in last {period_str} "
+            f"({len(selected)}):"
+        )
+        groups[header] = selected
 
-        active_incidents = [
+    elif show == "resolved":
+        period_str = period or DEFAULT_PERIOD["resolved"]
+        cutoff = parse_period(period_str).format("YYYY-MM-DD")
+        selected = [
+            item for item in incidents if item.resolved and item.resolved > cutoff
+        ]
+        header = f"Resolved incidents — last {period_str} ({len(selected)}):"
+        groups[header] = selected
+
+    elif show == "active":
+        selected = [item for item in incidents if item.status != "Resolved"]
+        header = f"Active incidents — status is not Resolved ({len(selected)}):"
+        groups[header] = selected
+
+    elif show == "dormant":
+        period_str = period or DEFAULT_PERIOD["dormant"]
+        cutoff = parse_period(period_str).format("YYYY-MM-DD")
+        selected = [
             item
             for item in incidents
-            if item.key not in shown_keys and item.status != "Resolved"
+            if item.status != "Resolved"
+            and (not item.report_modified or item.report_modified <= cutoff)
         ]
-        header = f"Active incidents ({len(active_incidents)}):"
-        groups[header] = active_incidents
-        shown_keys.update([item.key for item in active_incidents])
-
-        recently_updated = [
-            item
-            for item in incidents
-            if item.key not in shown_keys
-            and item.report_modified
-            and item.report_modified > two_weeks_ago
-        ]
-        header = f"Recently updated docs ({len(recently_updated)}):"
-        groups[header] = recently_updated
+        header = (
+            f"Dormant incidents — unresolved, report not touched in {period_str} "
+            f"({len(selected)}):"
+        )
+        groups[header] = selected
 
     else:
         groups[f"All incidents ({len(incidents)})"] = incidents
