@@ -132,7 +132,7 @@ def iim_data(ctx, show, period, output, client_secret_file):
             item
             for item in incidents
             if item.status != "Resolved"
-            or (item.report_modified and item.report_modified > cutoff)
+            or (item.report_modified and item.report_modified[:10] > cutoff)
         ]
         header = (
             f"Working incidents — unresolved or report touched in last {period_str} "
@@ -144,7 +144,7 @@ def iim_data(ctx, show, period, output, client_secret_file):
         period_str = period or DEFAULT_PERIOD["resolved"]
         cutoff = parse_period(period_str).format("YYYY-MM-DD")
         selected = [
-            item for item in incidents if item.resolved and item.resolved > cutoff
+            item for item in incidents if item.resolved and item.resolved[:10] > cutoff
         ]
         header = f"Resolved incidents — last {period_str} ({len(selected)}):"
         groups[header] = selected
@@ -161,7 +161,7 @@ def iim_data(ctx, show, period, output, client_secret_file):
             item
             for item in incidents
             if item.status != "Resolved"
-            and (not item.report_modified or item.report_modified <= cutoff)
+            and (not item.report_modified or item.report_modified[:10] <= cutoff)
         ]
         header = (
             f"Dormant incidents — unresolved, report not touched in {period_str} "
