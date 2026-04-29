@@ -8,6 +8,7 @@ Lists incidents data.
 
 import os
 import re
+from typing import Optional
 
 import arrow
 import click
@@ -16,6 +17,7 @@ import rich
 
 from iim.libgdoc import build_service, update_report
 from iim.libjira import JiraAPI, fix_jira_incident_data
+from iim.libreport import IncidentReport
 
 
 load_dotenv()
@@ -48,6 +50,63 @@ def parse_period(s: str) -> arrow.Arrow:
     if unit == "mo":
         return now.shift(months=-n)
     return now.shift(years=-n)
+
+
+def filter_incidents(
+    incidents: list[IncidentReport],
+    show: Optional[str],
+    period: Optional[str],
+) -> tuple[str, list[IncidentReport]]:
+    """Filter incidents by --show view.
+
+    Returns (header, selected). When show is None, returns all incidents.
+    Raises click.BadParameter if `period` is invalid.
+    """
+    if show is None:
+        return f"All incidents ({len(incidents)})", incidents
+
+    if show == "active":
+        selected = [item for item in incidents if item.status != "Resolved"]
+        header = f"Active incidents — status is not Resolved ({len(selected)}):"
+        return header, selected
+
+    period_str = period or DEFAULT_PERIOD[show]
+    cutoff = parse_period(period_str).format("YYYY-MM-DD")
+
+    if show == "working":
+        selected = [
+            item
+            for item in incidents
+            if item.status != "Resolved"
+            or (item.report_modified and item.report_modified[:10] > cutoff)
+        ]
+        header = (
+            f"Working incidents — unresolved or report touched in last {period_str} "
+            f"({len(selected)}):"
+        )
+        return header, selected
+
+    if show == "resolved":
+        selected = [
+            item for item in incidents if item.resolved and item.resolved[:10] > cutoff
+        ]
+        header = f"Resolved incidents — last {period_str} ({len(selected)}):"
+        return header, selected
+
+    if show == "dormant":
+        selected = [
+            item
+            for item in incidents
+            if item.status != "Resolved"
+            and (not item.report_modified or item.report_modified[:10] <= cutoff)
+        ]
+        header = (
+            f"Dormant incidents — unresolved, report not touched in {period_str} "
+            f"({len(selected)}):"
+        )
+        return header, selected
+
+    raise ValueError(f"unknown show value: {show!r}")
 
 
 @click.command()
@@ -122,76 +181,27 @@ def iim_data(ctx, show, period, output, client_secret_file):
     if drive_service:
         incidents = [update_report(drive_service, incident) for incident in incidents]
 
-    # Header -> list of incidents
-    groups = {}
+    header, selected = filter_incidents(incidents, show, period)
 
-    if show == "working":
-        period_str = period or DEFAULT_PERIOD["working"]
-        cutoff = parse_period(period_str).format("YYYY-MM-DD")
-        selected = [
-            item
-            for item in incidents
-            if item.status != "Resolved"
-            or (item.report_modified and item.report_modified[:10] > cutoff)
-        ]
-        header = (
-            f"Working incidents — unresolved or report touched in last {period_str} "
-            f"({len(selected)}):"
-        )
-        groups[header] = selected
+    if output == "all":
+        click.echo()
+        click.echo(f"# {header}")
+        click.echo()
 
-    elif show == "resolved":
-        period_str = period or DEFAULT_PERIOD["resolved"]
-        cutoff = parse_period(period_str).format("YYYY-MM-DD")
-        selected = [
-            item for item in incidents if item.resolved and item.resolved[:10] > cutoff
-        ]
-        header = f"Resolved incidents — last {period_str} ({len(selected)}):"
-        groups[header] = selected
-
-    elif show == "active":
-        selected = [item for item in incidents if item.status != "Resolved"]
-        header = f"Active incidents — status is not Resolved ({len(selected)}):"
-        groups[header] = selected
-
-    elif show == "dormant":
-        period_str = period or DEFAULT_PERIOD["dormant"]
-        cutoff = parse_period(period_str).format("YYYY-MM-DD")
-        selected = [
-            item
-            for item in incidents
-            if item.status != "Resolved"
-            and (not item.report_modified or item.report_modified[:10] <= cutoff)
-        ]
-        header = (
-            f"Dormant incidents — unresolved, report not touched in {period_str} "
-            f"({len(selected)}):"
-        )
-        groups[header] = selected
-
-    else:
-        groups[f"All incidents ({len(incidents)})"] = incidents
-
-    for header, incidents_group in groups.items():
+    for incident in selected:
         if output == "all":
+            rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
+            rich.print(f"Status:       {incident.status}")
+            rich.print(f"Resolved:     {incident.resolved}")
+            modified_time = incident.report_modified or "unknown"
+            rich.print(f"Doc modified: {modified_time}")
             click.echo()
-            click.echo(f"# {header}")
+            rich.print(f"Jira: {incident.jira_url}")
+            rich.print(f"Doc:  {incident.report_url}")
             click.echo()
 
-        for incident in incidents_group:
-            if output == "all":
-                rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
-                rich.print(f"Status:       {incident.status}")
-                rich.print(f"Resolved:     {incident.resolved}")
-                modified_time = incident.report_modified or "unknown"
-                rich.print(f"Doc modified: {modified_time}")
-                click.echo()
-                rich.print(f"Jira: {incident.jira_url}")
-                rich.print(f"Doc:  {incident.report_url}")
-                click.echo()
+        elif output == "report-urls":
+            rich.print(incident.report_url)
 
-            elif output == "report-urls":
-                rich.print(incident.report_url)
-
-            elif output == "jira-urls":
-                rich.print(incident.jira_url)
+        elif output == "jira-urls":
+            rich.print(incident.jira_url)
