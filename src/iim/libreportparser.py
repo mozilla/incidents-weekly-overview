@@ -13,7 +13,7 @@ from iim.libreport import ActionItem, IncidentReport, normalize_entities
 
 
 DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
-ANCHOR_RE = re.compile(r"\s*\{#[a-zA-Z0-9.%\-'\"():]+\}")
+ANCHOR_RE = re.compile(r"\s*\{#[^}]+\}")
 DATETIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2})")
 ISO_DATETIME_RE = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})")
 JIRA_ISSUE_RE = re.compile(r"(IIM\-\d+)")
