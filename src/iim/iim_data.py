@@ -6,9 +6,12 @@
 Lists incidents data.
 """
 
+import csv
+import dataclasses
 import os
 import re
-from typing import Optional
+import sys
+from typing import Optional, Union
 
 import arrow
 import click
@@ -30,6 +33,40 @@ DEFAULT_PERIOD = {
     "resolved": "7d",
     "dormant": "6mo",
 }
+
+INCIDENT_REPORT_FIELDS = {f.name for f in dataclasses.fields(IncidentReport)}
+
+
+def parse_output(value: str) -> Union[str, list[str]]:
+    """Parse --output value.
+
+    Returns the literal "all" for the rich human-readable view. Otherwise
+    treats the value as a comma-separated list of IncidentReport field names
+    and returns that list with whitespace stripped. Raises click.BadParameter
+    on unknown fields or an empty list.
+    """
+    if value == "all":
+        return "all"
+    fields = [f.strip() for f in value.split(",") if f.strip()]
+    if not fields:
+        raise click.BadParameter(
+            "--output must be 'all' or a comma-separated list of fields."
+        )
+    invalid = [f for f in fields if f not in INCIDENT_REPORT_FIELDS]
+    if invalid:
+        raise click.BadParameter(
+            f"unknown field(s): {', '.join(invalid)}. "
+            f"Valid fields: {', '.join(sorted(INCIDENT_REPORT_FIELDS))}"
+        )
+    return fields
+
+
+def _format_field(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    return str(value)
 
 
 def parse_period(s: str) -> arrow.Arrow:
@@ -137,10 +174,11 @@ def filter_incidents(
     "--output",
     default="all",
     show_default=True,
-    type=click.Choice(["all", "report-urls", "jira-urls"]),
+    callback=lambda ctx, param, value: parse_output(value),
     help=(
-        "Output format: 'all' prints full details, 'report-urls' prints only the "
-        "incident report (Google Doc) URLs, 'jira-urls' prints only the Jira issue URLs."
+        "Output format. 'all' prints full human-readable details. Otherwise, "
+        "a comma-separated list of IncidentReport fields prints one CSV row "
+        "per incident with a header row, e.g. 'key,jira_url,report_url'."
     ),
 )
 @click.option(
@@ -168,7 +206,11 @@ def iim_data(ctx, show, period, output, client_secret_file):
         password=os.environ["JIRA_TOKEN"].strip(),
     )
 
-    needs_drive = output == "all" or show in ("working", "dormant")
+    needs_drive = (
+        output == "all"
+        or show in ("working", "dormant")
+        or (isinstance(output, list) and "report_modified" in output)
+    )
     drive_service = build_service(client_secret_file) if needs_drive else None
 
     issue_data = jira.get_all_issues_for_project(project_key="IIM")
@@ -187,9 +229,7 @@ def iim_data(ctx, show, period, output, client_secret_file):
         click.echo()
         click.echo(f"# {header}")
         click.echo()
-
-    for incident in selected:
-        if output == "all":
+        for incident in selected:
             rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
             rich.print(f"Status:       {incident.status}")
             rich.print(f"Resolved:     {incident.resolved}")
@@ -199,9 +239,8 @@ def iim_data(ctx, show, period, output, client_secret_file):
             rich.print(f"Jira: {incident.jira_url}")
             rich.print(f"Doc:  {incident.report_url}")
             click.echo()
-
-        elif output == "report-urls":
-            rich.print(incident.report_url)
-
-        elif output == "jira-urls":
-            rich.print(incident.jira_url)
+    else:
+        writer = csv.writer(sys.stdout)
+        writer.writerow(output)
+        for incident in selected:
+            writer.writerow([_format_field(getattr(incident, f)) for f in output])
