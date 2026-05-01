@@ -22,12 +22,14 @@ def _make(
     status: str = "Resolved",
     resolved: str | None = None,
     report_modified: str | None = None,
+    labels: list[str] | None = None,
 ) -> IncidentReport:
     return IncidentReport(
         key=key,
         status=status,
         resolved=resolved,
         report_modified=report_modified,
+        labels=labels if labels is not None else [],
     )
 
 
@@ -183,6 +185,99 @@ def test_filter_incidents_working_default_period():
     assert "14d" in header  # default
 
 
+def test_filter_incidents_completed_default_period():
+    incidents = [
+        # Resolved + completed + recent → in
+        _make(
+            "IIM-1",
+            status="Resolved",
+            resolved=_ts_days_ago(3),
+            labels=["completed"],
+        ),
+        # Resolved + completed but outside period → out
+        _make(
+            "IIM-2",
+            status="Resolved",
+            resolved=_ts_days_ago(30),
+            labels=["completed"],
+        ),
+        # Resolved + recent but not completed → out
+        _make("IIM-3", status="Resolved", resolved=_ts_days_ago(3)),
+        # Completed but not resolved status → out
+        _make(
+            "IIM-4",
+            status="Open",
+            resolved=_ts_days_ago(3),
+            labels=["completed"],
+        ),
+        # Resolved + completed but missing resolved timestamp → out
+        _make("IIM-5", status="Resolved", resolved=None, labels=["completed"]),
+    ]
+    header, selected = filter_incidents(incidents, show="completed", period=None)
+    assert "7d" in header  # default
+    assert [i.key for i in selected] == ["IIM-1"]
+
+
+def test_filter_incidents_completed_custom_period():
+    incidents = [
+        _make(
+            "IIM-1",
+            status="Resolved",
+            resolved=_ts_days_ago(3),
+            labels=["completed"],
+        ),
+        _make(
+            "IIM-2",
+            status="Resolved",
+            resolved=_ts_days_ago(20),
+            labels=["completed"],
+        ),
+        _make(
+            "IIM-3",
+            status="Resolved",
+            resolved=_ts_days_ago(40),
+            labels=["completed"],
+        ),
+    ]
+    header, selected = filter_incidents(incidents, show="completed", period="30d")
+    assert "30d" in header
+    assert [i.key for i in selected] == ["IIM-1", "IIM-2"]
+
+
+def test_filter_incidents_not_completed_default_period():
+    incidents = [
+        # Resolved + not completed + recent → in
+        _make("IIM-1", status="Resolved", resolved=_ts_days_ago(3)),
+        # Resolved + not completed but outside period → out
+        _make("IIM-2", status="Resolved", resolved=_ts_days_ago(400)),
+        # Resolved + completed → out
+        _make(
+            "IIM-3",
+            status="Resolved",
+            resolved=_ts_days_ago(3),
+            labels=["completed"],
+        ),
+        # Not Resolved status → out
+        _make("IIM-4", status="Open", resolved=_ts_days_ago(3)),
+        # Resolved but missing resolved timestamp → out
+        _make("IIM-5", status="Resolved", resolved=None),
+    ]
+    header, selected = filter_incidents(incidents, show="not-completed", period=None)
+    assert "6mo" in header  # default
+    assert [i.key for i in selected] == ["IIM-1"]
+
+
+def test_filter_incidents_not_completed_custom_period():
+    incidents = [
+        _make("IIM-1", status="Resolved", resolved=_ts_days_ago(3)),
+        _make("IIM-2", status="Resolved", resolved=_ts_days_ago(20)),
+        _make("IIM-3", status="Resolved", resolved=_ts_days_ago(40)),
+    ]
+    header, selected = filter_incidents(incidents, show="not-completed", period="30d")
+    assert "30d" in header
+    assert [i.key for i in selected] == ["IIM-1", "IIM-2"]
+
+
 def test_filter_incidents_dormant():
     incidents = [
         # Unresolved + old report → in
@@ -211,7 +306,15 @@ def test_filter_incidents_invalid_period_propagates():
 
 
 def test_filter_incidents_empty_input():
-    for show in (None, "working", "resolved", "active", "dormant"):
+    for show in (
+        None,
+        "working",
+        "resolved",
+        "completed",
+        "not-completed",
+        "active",
+        "dormant",
+    ):
         header, selected = filter_incidents([], show=show, period=None)
         assert selected == []
         assert "(0)" in header

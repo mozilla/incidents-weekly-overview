@@ -31,6 +31,8 @@ PERIOD_RE = re.compile(r"^(\d+)(d|w|mo|y)$")
 DEFAULT_PERIOD = {
     "working": "14d",
     "resolved": "7d",
+    "completed": "7d",
+    "not-completed": "6mo",
     "dormant": "6mo",
 }
 
@@ -130,6 +132,36 @@ def filter_incidents(
         header = f"Resolved incidents — last {period_str} ({len(selected)}):"
         return header, selected
 
+    if show == "completed":
+        selected = [
+            item
+            for item in incidents
+            if item.status == "Resolved"
+            and item.is_completed
+            and item.resolved
+            and item.resolved[:10] > cutoff
+        ]
+        header = (
+            f"Completed incidents — resolved and completed in last {period_str} "
+            f"({len(selected)}):"
+        )
+        return header, selected
+
+    if show == "not-completed":
+        selected = [
+            item
+            for item in incidents
+            if item.status == "Resolved"
+            and not item.is_completed
+            and item.resolved
+            and item.resolved[:10] > cutoff
+        ]
+        header = (
+            f"Not-completed incidents — resolved but not completed in last "
+            f"{period_str} ({len(selected)}):"
+        )
+        return header, selected
+
     if show == "dormant":
         selected = [
             item
@@ -150,11 +182,15 @@ def filter_incidents(
 @click.option(
     "--show",
     "show",
-    type=click.Choice(["working", "resolved", "active", "dormant"]),
+    type=click.Choice(
+        ["working", "resolved", "completed", "not-completed", "active", "dormant"]
+    ),
     default=None,
     help=(
         "Filter incidents by view: 'working' (unresolved or report modified within "
-        "period), 'resolved' (resolved within period), 'active' (status is not "
+        "period), 'resolved' (resolved within period), 'completed' (resolved and "
+        "report marked completed within period), 'not-completed' (resolved but "
+        "report not marked completed within period), 'active' (status is not "
         "Resolved, no time filter), 'dormant' (unresolved and report not modified "
         "within period). Omit to list all incidents."
     ),
@@ -166,8 +202,8 @@ def filter_incidents(
     help=(
         "Time window as a duration string: Nd (days), Nw (weeks), Nmo (months), "
         "Ny (years). Examples: 7d, 2w, 6mo, 1y. "
-        "Defaults: --show working=14d, --show resolved=7d, --show dormant=6mo. "
-        "Ignored when --show=active."
+        "Defaults: --show working=14d, --show resolved=7d, --show completed=7d, "
+        "--show not-completed=6mo, --show dormant=6mo. Ignored when --show=active."
     ),
 )
 @click.option(
@@ -230,11 +266,15 @@ def iim_data(ctx, show, period, output, client_secret_file):
         click.echo(f"# {header}")
         click.echo()
         for incident in selected:
-            rich.print(f"{incident.key}  {incident.summary}  ({incident.entities})")
-            rich.print(f"Status:       {incident.status}")
-            rich.print(f"Resolved:     {incident.resolved}")
+            rich.print(
+                f"{incident.key}  {incident.severity}  {incident.summary}  "
+                f"({incident.entities})"
+            )
+            rich.print(f"Status:           {incident.status}")
+            rich.print(f"Resolved:         {incident.resolved}")
+            rich.print(f"Report completed: {incident.is_completed}")
             modified_time = incident.report_modified or "unknown"
-            rich.print(f"Doc modified: {modified_time}")
+            rich.print(f"Doc modified:     {modified_time}")
             click.echo()
             rich.print(f"Jira: {incident.jira_url}")
             rich.print(f"Doc:  {incident.report_url}")
