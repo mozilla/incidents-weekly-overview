@@ -130,14 +130,14 @@ def iim_weekly_report(ctx, friday_date):
         )
     ]
 
-    four_weeks_ago = arrow.now().shift(weeks=-4).format("YYYY-MM-DD")
+    six_weeks_ago = arrow.now().shift(weeks=-6).format("YYYY-MM-DD")
     recently_resolved = [
         incident
         for incident in incidents
         if (
             incident.status == "Resolved"
             and incident.resolved is not None
-            and incident.resolved[:10] >= four_weeks_ago
+            and incident.resolved[:10] >= six_weeks_ago
         )
     ]
 

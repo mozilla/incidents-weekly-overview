@@ -145,6 +145,11 @@
     color: #1B1B1B;
     border-color: #A5A5A5;
   }
+  span.entity.entity-unknown {
+    background: #F3F4F6;            /* light gray */
+    color: #6B7280;                 /* medium gray */
+    border: 1px dashed #6B7280;     /* dashed dark gray border */
+  }
 
   span.status {
     font-weight: 700;
@@ -209,6 +214,11 @@
     color: #3730A3;                 /* dark indigo */
     border-color: #A5B4FC;
   }
+  span.sev.sev-Sunknown {
+    background: #F3F4F6;            /* light gray */
+    color: #6B7280;                 /* medium gray */
+    border: 1px dashed #6B7280;     /* dashed dark gray border */
+  }
 
   /* Footer text */
   body > p:last-of-type {
@@ -220,6 +230,72 @@
 </head>
 <body>
   <h1 class="title">Weekly incident overview for Mozilla incidents for {{ this_friday | friendly_date }}</h1>
+
+  <p>From {{ last_friday | friendly_date }} to {{ this_friday | friendly_date }}</p>
+  <ul>
+    <li>New incidents declared in the last week: ({{ new_incidents | length }})</li>
+    <li>Active incidents: ({{ active_incidents | length }})</li>
+    <li>Dormant incidents: ({{ dormant_incidents | length }})</li>
+    <li>Incidents resolved in the last 6 weeks: ({{ recently_resolved | length }})</li>
+  </ul>
+
+  <h1>New incidents declared in the last week ({{ new_incidents | length }})</h1>
+  {% if new_incidents %}
+    <table class="severity_breakdown">
+      <tr>
+        <td><span class="sev sev-S1">S1</span></td>
+        <td>{{ num_s1_incidents }}</td>
+        <td><span class="sev sev-S2">S2</span></td>
+        <td>{{ num_s2_incidents }}</td>
+        <td><span class="sev sev-S3">S3</span></td>
+        <td>{{ num_s3_incidents }}</td>
+        <td><span class="sev sev-S4">S4</span></td>
+        <td>{{ num_s4_incidents }}</td>
+      </tr>
+    </table>
+    <table class="incidents">
+      <tr>
+        <th>Jira</th>
+        <th>Summary</th>
+      </tr>
+      {% for item in new_incidents | sort(attribute="severity") %}
+        <tr class="row-{{ loop.cycle('odd', 'even') }}">
+          <td><a href="{{ item['jira_url'] }}">{{ item['key'] }}</a></td>
+          <td>
+            <div>
+              <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
+            </div>
+            <div>
+              <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
+              <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
+              <span class="key">Entities:</span>
+              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
+              {% for entity in item.entities | split_entities %}
+                 <span class="entity">{{ entity }}</span>
+              {% endfor %}
+            </div>
+            <div>
+              <span class="key">Age:</span> {{ item.age | humanize_timedelta }}
+              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
+              &mdash;
+              <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              &mdash;
+              <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+    </table>
+    <p>
+      <a href="{{ new_incidents_link }}">See these incidents in Jira</a>
+    </p>
+  {% else %}
+    <p>
+      There were no incidents.
+    </p>
+  {% endif %}
 
   <h1>Trends Summary</h1>
   <p>
@@ -439,75 +515,7 @@
           mean is not very representative, and outliers dominate.
         </p>
 
-  <h1>Incident Week Summary</h1>
-  <p>From {{ last_friday | friendly_date }} to {{ this_friday | friendly_date }}</p>
-  <p>
-    {% if num_incidents == 1 %}
-      There was {{ num_incidents }} incident in the last week.
-    {% else %}
-      There were {{ num_incidents }} incidents in the last week.
-    {% endif %}
-  </p>
-  <table class="severity_breakdown">
-    <tr>
-      <td><span class="sev sev-S1">S1</span></td>
-      <td>{{ num_s1_incidents }}</td>
-      <td><span class="sev sev-S2">S2</span></td>
-      <td>{{ num_s2_incidents }}</td>
-      <td><span class="sev sev-S3">S3</span></td>
-      <td>{{ num_s3_incidents }}</td>
-      <td><span class="sev sev-S4">S4</span></td>
-      <td>{{ num_s4_incidents }}</td>
-    </tr>
-  </table>
-
-  <h2>New incidents declared in the last week ({{ new_incidents | length }})</h2>
-  {% if new_incidents %}
-    <table class="incidents">
-      <tr>
-        <th>Jira</th>
-        <th>Summary</th>
-      </tr>
-      {% for item in new_incidents | sort(attribute="severity") %}
-        <tr class="row-{{ loop.cycle('odd', 'even') }}">
-          <td><a href="{{ item['jira_url'] }}">{{ item['key'] }}</a></td>
-          <td>
-            <div>
-              <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
-            </div>
-            <div>
-              <span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span>
-              <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="key">Entities:</span>
-              <span class="entity">{{ item.entity_bucket }}</span>
-              {% for entity in item.entities | split_entities %}
-                 <span class="entity">{{ entity }}</span>
-              {% endfor %}
-            </div>
-            <div>
-              <span class="key">Age:</span> {{ item.age | humanize_timedelta }}
-              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
-              &mdash;
-              <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
-              &mdash;
-              <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
-              &mdash;
-              <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
-            </div>
-          </td>
-        </tr>
-      {% endfor %}
-    </table>
-    <p>
-      <a href="{{ new_incidents_link }}">See these incidents in Jira</a>
-    </p>
-  {% else %}
-    <p>
-      There were no incidents.
-    </p>
-  {% endif %}
-
-  <h2>Active incidents ({{ active_incidents | length }})</h2>
+  <h1>Active incidents ({{ active_incidents | length }})</h1>
   {% if active_incidents %}
     <table class="incidents">
       <tr>
@@ -522,10 +530,10 @@
               <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
             </div>
             <div>
-              <span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span>
+              <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
-              <span class="entity">{{ item.entity_bucket }}</span>
+              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
               {% for entity in item.entities | split_entities %}
                 <span class="entity">{{ entity }}</span>
               {% endfor %}
@@ -553,7 +561,7 @@
     </p>
   {% endif %}
 
-  <h2>Dormant incidents ({{ dormant_incidents | length }})</h2>
+  <h1>Dormant incidents ({{ dormant_incidents | length }})</h1>
   {% if dormant_incidents %}
     <table class="incidents">
       <tr>
@@ -568,10 +576,10 @@
               <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
             </div>
             <div>
-              <span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span>
+              <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
-              <span class="entity">{{ item.entity_bucket }}</span>
+              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
@@ -599,7 +607,7 @@
     </p>
   {% endif %}
 
-  <h2>Recently resolved incidents in the last 4 weeks ({{ recently_resolved | length }})</h2>
+  <h1>Incidents resolved in the last 6 weeks ({{ recently_resolved | length }})</h1>
   {% if recently_resolved %}
     <table class="incidents">
       <tr>
@@ -614,10 +622,10 @@
               <span class="summary"><a href="{{ item['report_url'] }}">{{ item['summary'] }}</a></span>
             </div>
             <div>
-              <span class="sev sev-{{ item['severity'] }}">{{ item['severity'] }}</span>
+              <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
               <span class="key">Entities:</span>
-              <span class="entity">{{ item.entity_bucket }}</span>
+              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}

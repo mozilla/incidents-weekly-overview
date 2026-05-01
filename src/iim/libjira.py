@@ -111,9 +111,7 @@ def fix_jira_incident_data(
         status=incident["fields"]["status"]["name"],
         summary=incident["fields"]["summary"],
         description=incident["fields"]["description"],
-        severity=glom(
-            incident, "fields.customfield_10319.value", default="undetermined"
-        ),
+        severity=glom(incident, "fields.customfield_10319.value", default="S?"),
         entities=normalize_entities(
             glom(incident, "fields.customfield_18555", default=None)
         ),

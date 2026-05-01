@@ -154,8 +154,8 @@ class UndeterminedSeverityLintRule(LintRule):
     severity = "warn"
 
     def lint(self, report: IncidentReport) -> Optional[str]:
-        if report.severity == "undetermined":
-            return 'Severity is "undetermined".'
+        if report.severity == "S?":
+            return 'Severity is "S?".'
         return None
 
 
