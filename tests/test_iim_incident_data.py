@@ -99,7 +99,7 @@ def test_includes_computed_properties(runner, env_vars, client_secret_file):
     data = json.loads(result.output)
     assert data["entity_bucket"] == "service"
     assert data["is_completed"] is True
-    assert data["age"] is not None
+    assert data["impact_duration"] is not None
     assert data["tt_declared"] is not None
     assert data["tt_alerted"] is not None
     assert data["tt_responded"] is not None
@@ -120,7 +120,7 @@ def test_computed_properties_none_when_missing(runner, env_vars, client_secret_f
     result, _ = invoke(runner, ["IIM-42"], env_vars, client_secret_file, report)
     data = json.loads(result.output)
     assert data["is_completed"] is False
-    assert data["age"] is None
+    assert data["impact_duration"] is None
     assert data["tt_declared"] is None
     assert data["tt_alerted"] is None
     assert data["tt_responded"] is None

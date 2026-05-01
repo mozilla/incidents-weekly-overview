@@ -177,7 +177,7 @@ class IncidentReport:
         return "completed" in self.labels
 
     @property
-    def _start_ts(self) -> Optional[str]:
+    def earliest_start(self) -> Optional[str]:
         # impact_start is correct, but degrade to the earlier of alerted, declared,
         # or detected.
         earliest = list(
@@ -200,47 +200,51 @@ class IncidentReport:
         return "product"
 
     @property
-    def age(self) -> Optional[timedelta]:
-        start_ts = self.impact_start or self.declared
-        if not start_ts:
+    def impact_duration(self) -> Optional[timedelta]:
+        if not self.earliest_start:
             return None
-        end_ts = arrow.get(self.resolved) if self.resolved else arrow.now()
-        return end_ts - arrow.get(start_ts)
+        end = self.mitigated or self.resolved
+        end_ts = arrow.get(end) if end else arrow.now()
+        return end_ts - arrow.get(self.earliest_start)
 
     @property
     def tt_declared(self) -> Optional[timedelta]:
         # NOTE(willkg): We don't have good declared data prior to September
         # 15th, 2025, so don't calculate it if before that date.
-        if not self.declared or self.declared <= "2025-09-15" or not self._start_ts:
+        if (
+            not self.declared
+            or self.declared <= "2025-09-15"
+            or not self.earliest_start
+        ):
             return None
-        return arrow.get(self.declared) - arrow.get(self._start_ts)
+        return arrow.get(self.declared) - arrow.get(self.earliest_start)
 
     @property
     def tt_alerted(self) -> Optional[timedelta]:
         # NOTE(willkg): Older incidents had "detected" data and may not
         # have had "alerted" data.
         alerted = self.alerted or self.detected
-        if not self._start_ts or not alerted:
+        if not self.earliest_start or not alerted:
             return None
-        return arrow.get(alerted) - arrow.get(self._start_ts)
+        return arrow.get(alerted) - arrow.get(self.earliest_start)
 
     @property
     def tt_responded(self) -> Optional[timedelta]:
-        if not self._start_ts or not self.responded:
+        if not self.earliest_start or not self.responded:
             return None
-        return arrow.get(self.responded) - arrow.get(self._start_ts)
+        return arrow.get(self.responded) - arrow.get(self.earliest_start)
 
     @property
     def tt_mitigated(self) -> Optional[timedelta]:
-        if not self._start_ts or not self.mitigated:
+        if not self.earliest_start or not self.mitigated:
             return None
-        return arrow.get(self.mitigated) - arrow.get(self._start_ts)
+        return arrow.get(self.mitigated) - arrow.get(self.earliest_start)
 
     @property
     def tt_resolved(self) -> Optional[timedelta]:
-        if not self._start_ts or not self.resolved:
+        if not self.earliest_start or not self.resolved:
             return None
-        return arrow.get(self.resolved) - arrow.get(self._start_ts)
+        return arrow.get(self.resolved) - arrow.get(self.earliest_start)
 
     @property
     def tracked_action_items(self):
