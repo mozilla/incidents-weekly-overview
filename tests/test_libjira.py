@@ -158,7 +158,7 @@ def test_fix_jira_incident_data_missing_optional_fields():
     }
     result = fix_jira_incident_data(jira_url=JIRA_URL, incident=incident)
 
-    assert result.severity == "undetermined"
+    assert result.severity == "S?"
     assert result.entities is None
     assert result.labels == []
 

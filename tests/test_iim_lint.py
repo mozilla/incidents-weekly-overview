@@ -280,8 +280,8 @@ def test_undetermined_severity_passes_when_severity_set():
 def test_undetermined_severity_fails_when_severity_undetermined():
     from iim.iim_lint import UndeterminedSeverityLintRule
 
-    report = IncidentReport(key="IIM-1", severity="undetermined")
-    assert UndeterminedSeverityLintRule().lint(report) == 'Severity is "undetermined".'
+    report = IncidentReport(key="IIM-1", severity="S?")
+    assert UndeterminedSeverityLintRule().lint(report) == 'Severity is "S?".'
 
 
 # ---------------------------------------------------------------------------
