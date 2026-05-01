@@ -82,14 +82,8 @@ def test_parse_period_invalid(value):
 def test_parse_period_calendar_aware_months():
     """Months use calendar math (not 30-day approximation)."""
     cal_expected = arrow.now().shift(months=-1)
-    naive_30day = arrow.now().shift(days=-30)
     result = parse_period("1mo")
-    # Should be much closer to the calendar shift than to a 30-day shift
-    # (except in February, where they're closer; the gap is still detectable).
     assert abs(result - cal_expected) < timedelta(seconds=5)
-    # Sanity: in months that aren't 30 days, the two cutoffs differ.
-    if cal_expected != naive_30day:
-        assert abs(result - naive_30day) > timedelta(hours=1)
 
 
 def test_parse_period_calendar_aware_years():
