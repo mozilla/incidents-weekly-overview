@@ -162,6 +162,12 @@ def test_extract_last_timestamp(text, expected):
             True,
             "Phabricator returned HTTP 504",
         ),
+        # anchor ids may include arbitrary characters (commas, slashes, etc.)
+        (
+            "heading text {#heading,with/odd_chars&more}",
+            True,
+            "heading text",
+        ),
     ],
 )
 def test_get_text(md, keep_links, expected):
