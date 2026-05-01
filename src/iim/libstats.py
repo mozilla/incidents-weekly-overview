@@ -72,6 +72,7 @@ class PeriodStats:
     mean_action_items: Optional[
         float
     ]  # mean per resolved incident with action_items set
+    pct_reports_completed: float  # % of Resolved incidents with is_completed=True, 0-100
 
 
 @dataclass
@@ -254,6 +255,16 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
     else:
         mean_action_items = None
 
+    resolved_incidents = [i for i in incidents if i.status == "Resolved"]
+    if resolved_incidents:
+        pct_reports_completed = (
+            sum(1 for i in resolved_incidents if i.is_completed)
+            / len(resolved_incidents)
+            * 100
+        )
+    else:
+        pct_reports_completed = 0.0
+
     return PeriodStats(
         start=start,
         end=end,
@@ -270,6 +281,7 @@ def build_period_stats(incidents, start: str, end: str) -> PeriodStats:
         service_detection_method_counts=service_detection_method_counts,
         product_detection_method_counts=product_detection_method_counts,
         mean_action_items=mean_action_items,
+        pct_reports_completed=pct_reports_completed,
         service_mean_tt_dec=mean_timedelta([i.tt_declared for i in service]),
         service_mean_tt_alert=mean_timedelta([i.tt_alerted for i in service]),
         service_mean_tt_resp=mean_timedelta([i.tt_responded for i in service]),

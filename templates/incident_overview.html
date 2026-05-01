@@ -151,13 +151,20 @@
     border: 1px dashed #6B7280;     /* dashed dark gray border */
   }
 
+  span.impact {
+    margin-right: 8px;
+  }
+
   span.status {
+    margin-right: 8px;
     font-weight: 700;
     font-size: 12px;
     line-height: 1;
     display: inline-block;          /* allows pill shape */
     vertical-align: middle;
     padding: 4px 8px;
+    min-width: 80px;
+    text-align: center;
     border-radius: 999px;
     border: 1px solid transparent;
     white-space: nowrap;
@@ -184,11 +191,14 @@
   }
 
   span.sev {
+    margin-right: 8px;
     font-weight: 700;
     font-size: 12px;
     line-height: 1;
     display: inline-block;          /* allows pill shape */
     padding: 4px 8px;
+    min-width: 20px;
+    text-align: center;
     vertical-align: middle;
     border-radius: 999px;
     border: 1px solid transparent;
@@ -241,18 +251,6 @@
 
   <h1>New incidents declared in the last week ({{ new_incidents | length }})</h1>
   {% if new_incidents %}
-    <table class="severity_breakdown">
-      <tr>
-        <td><span class="sev sev-S1">S1</span></td>
-        <td>{{ num_s1_incidents }}</td>
-        <td><span class="sev sev-S2">S2</span></td>
-        <td>{{ num_s2_incidents }}</td>
-        <td><span class="sev sev-S3">S3</span></td>
-        <td>{{ num_s3_incidents }}</td>
-        <td><span class="sev sev-S4">S4</span></td>
-        <td>{{ num_s4_incidents }}</td>
-      </tr>
-    </table>
     <table class="incidents">
       <tr>
         <th>Jira</th>
@@ -268,20 +266,16 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="key">Entities:</span>
-              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
             <div>
-              <span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}
-              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
-              &mdash;
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
             </div>
           </td>
@@ -327,6 +321,13 @@
             <td colspan="3">{{ trends_summary.current.total_entities }}</td>
             <td>{{ direction_symbol(trends_summary.prior.total_entities, trends_summary.current.total_entities, True, "more", "fewer") }}</td>
             <td>Increase incident management adoption.</td>
+          </tr>
+          <tr>
+            <td>Reports completed</td>
+            <td colspan="3">{{ trends_summary.prior.pct_reports_completed | round(1) }}%</td>
+            <td colspan="3">{{ trends_summary.current.pct_reports_completed | round(1) }}%</td>
+            <td>{{ direction_symbol(trends_summary.prior.pct_reports_completed, trends_summary.current.pct_reports_completed, True) }}</td>
+            <td>Complete incident reports promptly.</td>
           </tr>
           <tr>
             <td>Mean action items per<br>incident</td>
@@ -532,20 +533,16 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="key">Entities:</span>
-              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}</span>
               {% for entity in item.entities | split_entities %}
                 <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
             <div>
-              <span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}
-              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
-              &mdash;
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
             </div>
           </td>
@@ -578,20 +575,16 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="key">Entities:</span>
-              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
             <div>
-              <span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}
-              {% if item.status not in ["Mitigated", "Resolved"] %}(ongoing){% endif %}
-              &mdash;
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
             </div>
           </td>
@@ -624,21 +617,18 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="key">Entities:</span>
-              <span class="entity{% if item.entity_bucket == 'unknown' %} entity-unknown{% endif %}">{{ item.entity_bucket }}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
             </div>
             <div>
-              <span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}
-              &mdash;
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
-              &mdash;
+              &middot;
               <span class="key">TT-RES:</span> {{ item.tt_resolved | humanize_timedelta }}
             </div>
             <div>
