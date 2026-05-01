@@ -72,7 +72,9 @@ class PeriodStats:
     mean_action_items: Optional[
         float
     ]  # mean per resolved incident with action_items set
-    pct_reports_completed: float  # % of Resolved incidents with is_completed=True, 0-100
+    pct_reports_completed: (
+        float  # % of Resolved incidents with is_completed=True, 0-100
+    )
 
 
 @dataclass
