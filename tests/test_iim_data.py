@@ -8,7 +8,7 @@ import arrow
 import click
 import pytest
 
-from iim.iim_data import filter_incidents, parse_period
+from iim.iim_data import filter_incidents, parse_output, parse_period
 from iim.libreport import IncidentReport
 
 
@@ -215,3 +215,55 @@ def test_filter_incidents_empty_input():
         header, selected = filter_incidents([], show=show, period=None)
         assert selected == []
         assert "(0)" in header
+
+
+# ---------------------------------------------------------------------------
+# parse_output
+# ---------------------------------------------------------------------------
+
+
+def test_parse_output_all():
+    assert parse_output("all") == "all"
+
+
+def test_parse_output_single_field():
+    assert parse_output("key") == ["key"]
+
+
+def test_parse_output_multiple_fields():
+    assert parse_output("key,jira_url,report_url") == [
+        "key",
+        "jira_url",
+        "report_url",
+    ]
+
+
+def test_parse_output_strips_whitespace():
+    assert parse_output(" key , jira_url ,report_url") == [
+        "key",
+        "jira_url",
+        "report_url",
+    ]
+
+
+def test_parse_output_drops_empty_segments():
+    assert parse_output("key,,jira_url,") == ["key", "jira_url"]
+
+
+@pytest.mark.parametrize("value", ["", ",", " , , "])
+def test_parse_output_empty_raises(value):
+    with pytest.raises(click.BadParameter):
+        parse_output(value)
+
+
+def test_parse_output_invalid_field_raises():
+    with pytest.raises(click.BadParameter) as exc:
+        parse_output("key,bogus,jira_url")
+    assert "bogus" in str(exc.value)
+
+
+def test_parse_output_all_is_literal_only():
+    # "all" mixed with other names is treated as a field list, not the
+    # rich-output mode, and "all" is not a valid IncidentReport field.
+    with pytest.raises(click.BadParameter):
+        parse_output("all,key")

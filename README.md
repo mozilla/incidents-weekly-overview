@@ -51,11 +51,15 @@ dependencies.
 
 # Usage
 
-`uv run iim-data [--active-only] [--output all|report-urls|jira-urls]`
+`uv run iim-data [--show ...] [--period ...] [--output all|FIELDS]`
 
-Lists all incidents from Jira. Use `--active-only` to show only active
-incidents, recently resolved incidents, and those with recently updated
-reports. Use `--output` to control the output format.
+Lists all incidents from Jira. Use `--show` to filter to a view
+(`working`, `resolved`, `active`, `dormant`) and `--period` to set the
+time window. Use `--output` to control the output format: `all` (the
+default) prints full human-readable details, or pass a comma-separated
+list of `IncidentReport` fields (e.g.
+`--output key,jira_url,report_url`) to print one CSV row per incident
+with a header row.
 
 `uv run iim-incident-data ISSUE_KEY`
 
