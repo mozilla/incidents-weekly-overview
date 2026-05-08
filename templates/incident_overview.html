@@ -126,6 +126,14 @@
   table.trends td, table.trends th {
     padding: 4px 8px;
     border: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+
+  /* Let the last column (Change) soak up the remaining width.
+     In auto table layout, width: 100% on a single cell tells the browser
+     to give it whatever space is left after the other cells size to content. */
+  table.trends td:last-child, table.trends th:last-child {
+    width: 100%;
   }
 
   table.trends tr:nth-child(odd) td {
@@ -312,35 +320,30 @@
             <th colspan="3">Prior</th>
             <th colspan="3">Recent</th>
             <th>Change</th>
-            <th>Objective</th>
           </tr>
           <tr>
             <td>Total incidents</td>
             <td colspan="3">{{ trends_summary.prior.total_incidents }}</td>
             <td colspan="3">{{ trends_summary.current.total_incidents }}</td>
             <td>{{ direction_symbol(trends_summary.prior.total_incidents, trends_summary.current.total_incidents, True, "more", "fewer") }}</td>
-            <td>Increase incident management adoption.</td>
           </tr>
           <tr>
             <td>Total entities</td>
             <td colspan="3">{{ trends_summary.prior.total_entities }}</td>
             <td colspan="3">{{ trends_summary.current.total_entities }}</td>
             <td>{{ direction_symbol(trends_summary.prior.total_entities, trends_summary.current.total_entities, True, "more", "fewer") }}</td>
-            <td>Increase incident management adoption.</td>
           </tr>
           <tr>
             <td>Reports completed</td>
             <td colspan="3">{{ trends_summary.prior.pct_reports_completed | round(1) }}%</td>
             <td colspan="3">{{ trends_summary.current.pct_reports_completed | round(1) }}%</td>
             <td>{{ direction_symbol(trends_summary.prior.pct_reports_completed, trends_summary.current.pct_reports_completed, True) }}</td>
-            <td>Complete incident reports promptly.</td>
           </tr>
           <tr>
             <td>Mean action items per<br>incident</td>
             <td colspan="3">{% if trends_summary.prior.mean_action_items is not none %}{{ trends_summary.prior.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
             <td colspan="3">{% if trends_summary.current.mean_action_items is not none %}{{ trends_summary.current.mean_action_items | round(1) }}{% else %}&mdash;{% endif %}</td>
             <td>{{ direction_symbol(trends_summary.prior.mean_action_items, trends_summary.current.mean_action_items, True) }}</td>
-            <td>Improve systems and processes after incidents.</td>
           </tr>
           <tr>
             <td>Top 5 entities</td>
@@ -355,7 +358,6 @@
               {% endfor %}
             </td>
             <td></td>
-            <td></td>
           </tr>
           {% for sev in ["S1", "S2", "S3", "S4"] %}
           <tr>
@@ -363,11 +365,10 @@
             <td colspan="3">{{ trends_summary.prior.severity_counts[sev] | round(1) }}%</td>
             <td colspan="3">{{ trends_summary.current.severity_counts[sev] | round(1) }}%</td>
             <td></td>
-            <td></td>
           </tr>
           {% endfor %}
           <tr>
-            <th colspan="9">Services</th>
+            <th colspan="8">Services</th>
           </tr>
           <tr>
             <th></th>
@@ -377,7 +378,6 @@
             <th>mean</th>
             <th>n</th>
             <th>pvar*</th>
-            <th></th>
             <th></th>
           </tr>
           <tr>
@@ -389,7 +389,6 @@
             <td>{{ trends_summary.current.service_count_tt_dec }}</td>
             <td>{{ format_pvar(trends_summary.current.service_mean_tt_dec, trends_summary.current.service_pvariance_tt_dec) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_dec, trends_summary.current.service_mean_tt_dec) }}</td>
-            <td>Mean time to declare decreases.</td>
           </tr>
           <tr>
             <td>MTT-ALERT</td>
@@ -400,7 +399,6 @@
             <td>{{ trends_summary.current.service_count_tt_alert }}</td>
             <td>{{ format_pvar(trends_summary.current.service_mean_tt_alert, trends_summary.current.service_pvariance_tt_alert) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_alert, trends_summary.current.service_mean_tt_alert) }}</td>
-            <td>Mean time to detect decreases.</td>
           </tr>
           <tr>
             <td>MTT-MIT</td>
@@ -411,7 +409,6 @@
             <td>{{ trends_summary.current.service_count_tt_mit }}</td>
             <td>{{ format_pvar(trends_summary.current.service_mean_tt_mit, trends_summary.current.service_pvariance_tt_mit) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_mit, trends_summary.current.service_mean_tt_mit) }}</td>
-            <td>Mean time to mitigation decreases.</td>
           </tr>
           <tr>
             <td>MTT-RES</td>
@@ -422,24 +419,21 @@
             <td>{{ trends_summary.current.service_count_tt_res }}</td>
             <td>{{ format_pvar(trends_summary.current.service_mean_tt_res, trends_summary.current.service_pvariance_tt_res) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.service_mean_tt_res, trends_summary.current.service_mean_tt_res) }}</td>
-            <td>Mean time to resolve decreases.</td>
           </tr>
           <tr>
             <td><span class="status status-Resolved">Resolved</span></td>
             <td colspan="3">{{ trends_summary.prior.service_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.prior.service_resolved_count }}/{{ trends_summary.prior.service_total_count }})</td>
             <td colspan="3">{{ trends_summary.current.service_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.current.service_resolved_count }}/{{ trends_summary.current.service_total_count }})</td>
             <td>{{ direction_symbol(trends_summary.prior.service_status_counts["Resolved"], trends_summary.current.service_status_counts["Resolved"], True) }}</td>
-            <td>Increase percentage of resolved incidents.</td>
           </tr>
           <tr>
             <td>Detection by automation</td>
             <td colspan="3">{{ trends_summary.prior.service_detection_method_counts["Automation"] | round(1) }}%</td>
             <td colspan="3">{{ trends_summary.current.service_detection_method_counts["Automation"] | round(1) }}%</td>
             <td>{{ direction_symbol(trends_summary.prior.service_detection_method_counts["Automation"], trends_summary.current.service_detection_method_counts["Automation"], True) }}</td>
-            <td>Increase detection by automation.</td>
           </tr>
           <tr>
-            <th colspan="9">Products</th>
+            <th colspan="8">Products</th>
           </tr>
           <tr>
             <th></th>
@@ -449,7 +443,6 @@
             <th>mean</th>
             <th>n</th>
             <th>pvar*</th>
-            <th></th>
             <th></th>
           </tr>
           <tr>
@@ -461,7 +454,6 @@
             <td>{{ trends_summary.current.product_count_tt_dec }}</td>
             <td>{{ format_pvar(trends_summary.current.product_mean_tt_dec, trends_summary.current.product_pvariance_tt_dec) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_dec, trends_summary.current.product_mean_tt_dec) }}</td>
-            <td>Mean time to declare decreases.</td>
           </tr>
           <tr>
             <td>MTT-ALERT</td>
@@ -472,7 +464,6 @@
             <td>{{ trends_summary.current.product_count_tt_alert }}</td>
             <td>{{ format_pvar(trends_summary.current.product_mean_tt_alert, trends_summary.current.product_pvariance_tt_alert) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_alert, trends_summary.current.product_mean_tt_alert) }}</td>
-            <td>Mean time to detect decreases.</td>
           </tr>
           <tr>
             <td>MTT-MIT</td>
@@ -483,7 +474,6 @@
             <td>{{ trends_summary.current.product_count_tt_mit }}</td>
             <td>{{ format_pvar(trends_summary.current.product_mean_tt_mit, trends_summary.current.product_pvariance_tt_mit) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_mit, trends_summary.current.product_mean_tt_mit) }}</td>
-            <td>Mean time to mitigation decreases.</td>
           </tr>
           <tr>
             <td>MTT-RES</td>
@@ -494,21 +484,18 @@
             <td>{{ trends_summary.current.product_count_tt_res }}</td>
             <td>{{ format_pvar(trends_summary.current.product_mean_tt_res, trends_summary.current.product_pvariance_tt_res) }}</td>
             <td>{{ direction_symbol(trends_summary.prior.product_mean_tt_res, trends_summary.current.product_mean_tt_res) }}</td>
-            <td>Mean time to resolve decreases.</td>
           </tr>
           <tr>
             <td><span class="status status-Resolved">Resolved</span></td>
             <td colspan="3">{{ trends_summary.prior.product_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.prior.product_resolved_count }}/{{ trends_summary.prior.product_total_count }})</td>
             <td colspan="3">{{ trends_summary.current.product_status_counts["Resolved"] | round(1) }}% ({{ trends_summary.current.product_resolved_count }}/{{ trends_summary.current.product_total_count }})</td>
             <td>{{ direction_symbol(trends_summary.prior.product_status_counts["Resolved"], trends_summary.current.product_status_counts["Resolved"], True) }}</td>
-            <td>Increase percentage of resolved incidents.</td>
           </tr>
           <tr>
             <td>Detection by automation</td>
             <td colspan="3">{{ trends_summary.prior.product_detection_method_counts["Automation"] | round(1) }}%</td>
             <td colspan="3">{{ trends_summary.current.product_detection_method_counts["Automation"] | round(1) }}%</td>
             <td>{{ direction_symbol(trends_summary.prior.product_detection_method_counts["Automation"], trends_summary.current.product_detection_method_counts["Automation"], True) }}</td>
-            <td></td>
           </tr>
         </table>
         <p>
