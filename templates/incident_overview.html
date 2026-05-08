@@ -289,8 +289,14 @@
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
               &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              {% if item.status in ["Mitigated", "Resolved"] %}
               &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+              {% endif %}
+              {% if item.status == "Resolved" %}
+              &middot;
+              <span class="key">TT-RES:</span> {{ item.tt_resolved | humanize_timedelta }}
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -535,8 +541,10 @@
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
               &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              {% if item.status in ["Mitigated", "Resolved"] %}
               &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -577,8 +585,10 @@
               <span class="key">TT-DEC:</span> {{ item.tt_declared | humanize_timedelta }}
               &middot;
               <span class="key">TT-ALERT:</span> {{ item.tt_alerted | humanize_timedelta }}
+              {% if item.status in ["Mitigated", "Resolved"] %}
               &middot;
               <span class="key">TT-MIT:</span> {{ item.tt_mitigated | humanize_timedelta }}
+              {% endif %}
             </div>
           </td>
         </tr>
