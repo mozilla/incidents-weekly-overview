@@ -10,6 +10,14 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 14px;
     line-height: 1.45;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /* Normalize regular content to a single size; mobile email clients
+     don't reliably inherit body font-size into table cells. */
+  p, li, div, td, a, span.summary {
+    font-size: 14px;
   }
 
   /* Constrain width for readability in email clients */
@@ -21,7 +29,7 @@
 
   /* Headings */
   h1.title {
-    font-size: 18px;
+    font-size: 17px;
     margin: 18px 0 10px;
     color: #111827;
     letter-spacing: 0.2px;
@@ -29,7 +37,7 @@
     padding-top: 0px;
   }
   h1 {
-    font-size: 18px;
+    font-size: 17px;
     margin: 18px 0 10px;
     color: #111827;
     letter-spacing: 0.2px;
@@ -52,7 +60,7 @@
   }
   code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-    font-size: 12px;
+    font-size: 14px;
     background: #f8fafc;
     border: 1px solid #e5e7eb;
     padding: 1px 6px;
@@ -87,7 +95,7 @@
     padding: 10px;
     border: 1px solid #e5e7eb;
     background: #dde5ef;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: #1e293b;
   }
@@ -129,7 +137,6 @@
   }
 
   span.summary {
-    font-size: 14px;
     display: inline-block;
   }
 
@@ -233,7 +240,6 @@
   /* Footer text */
   body > p:last-of-type {
     color: #6b7280;
-    font-size: 12px;
     margin-top: 16px;
   }
   </style>
