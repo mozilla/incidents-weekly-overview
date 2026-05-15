@@ -280,7 +280,7 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}{% if item.impact_duration and item.impact_duration.days > 7 %} ‼️{% endif %}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
@@ -532,7 +532,7 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}{% if item.impact_duration and item.impact_duration.days > 7 %} ‼️{% endif %}</span>
               {% for entity in item.entities | split_entities %}
                 <span class="entity">{{ entity }}</span>
               {% endfor %}
@@ -576,7 +576,7 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.status not in ["Mitigated", "Resolved"] %} (ongoing){% endif %}{% if item.impact_duration and item.impact_duration.days > 7 %} ‼️{% endif %}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
@@ -620,7 +620,7 @@
             <div>
               <span class="sev sev-{{ item['severity'] | replace('?', 'unknown') }}">{{ item['severity'] }}</span>
               <span class="status status-{{ item['status'].replace(' ', '') }}">{{ item['status'] }}</span>
-              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}</span>
+              <span class="impact"><span class="key">Impact:</span> {{ item.impact_duration | humanize_timedelta }}{% if item.impact_duration and item.impact_duration.days > 7 %} ‼️{% endif %}</span>
               {% for entity in item.entities | split_entities %}
                  <span class="entity">{{ entity }}</span>
               {% endfor %}
